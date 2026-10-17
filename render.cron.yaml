@@ -1,0 +1,56 @@
+# Optional reminder job. Render does not read this file.
+# Cron jobs have no free plan. The smallest plan is 0.5c-512mb, so it is not in render.yaml.
+# The default blueprint is only the free web service and free Postgres.
+#
+# To add it later, paste the service below into render.yaml under services: and sync the blueprint.
+# Or create a Cron Job in the Render dashboard with the same settings.
+#
+# Without this job, call the web service instead (CRON_SECRET is already on the web service):
+#   curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/cron/reminders
+
+services:
+  - type: cron
+    name: quotestick-reminders
+    runtime: node
+    plan: 0.5c-512mb
+    region: frankfurt
+    schedule: "0 8 * * *"
+    buildCommand: npm ci --include=dev && npx prisma generate
+    startCommand: npm run reminders
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quotestick-db
+          property: connectionString
+      - key: APP_URL
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: APP_URL
+      - key: SMTP_HOST
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_HOST
+      - key: SMTP_PORT
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_PORT
+      - key: SMTP_USER
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_USER
+      - key: SMTP_PASSWORD
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_PASSWORD
+      - key: SMTP_FROM
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_FROM

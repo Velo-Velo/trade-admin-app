@@ -9,20 +9,36 @@ describe("render blueprint", () => {
   const raw = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
   const blueprint = parse(raw) as { services: Service[]; databases: Array<{ name?: string; plan?: string; region?: string }> };
 
-  it("defines a node web service, a reminder cron, and Postgres", () => {
+  it("defines a free node web service and free Postgres, with no paid cron", () => {
     expect(raw.toLowerCase()).not.toContain("vercel");
     const web = blueprint.services.find((service) => service.type === "web");
-    const cron = blueprint.services.find((service) => service.type === "cron");
+    expect(blueprint.services.some((service) => service.type === "cron")).toBe(false);
     expect(web?.runtime).toBe("node");
+    expect(web?.plan).toBe("free");
     expect(web?.healthCheckPath).toBe("/api/health");
     expect(web?.buildCommand).toContain("prisma generate");
     expect(web?.startCommand).toBe("npm start");
-    expect(cron?.schedule).toBe("0 8 * * *");
-    expect(cron?.startCommand).toContain("reminders");
     expect(blueprint.databases[0]?.name).toBe("quotestick-db");
     expect(blueprint.databases[0]?.region).toBe("frankfurt");
-    expect(web?.plan).toBeTruthy();
-    expect(blueprint.databases[0]?.plan).toBeTruthy();
+    expect(blueprint.databases[0]?.plan).toBe("free");
+
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+      scripts: { start: string };
+    };
+    expect(pkg.scripts.start).toContain("prisma migrate deploy");
+    expect(pkg.scripts.start).toContain("tsx scripts/demo-on-start.ts");
+    expect(pkg.scripts.start).toContain("next start");
+    const hook = readFileSync(new URL("../scripts/demo-on-start.ts", import.meta.url), "utf8");
+    expect(hook).toContain("demoModeEnabled");
+    expect(hook).toContain("Sample trader left unchanged");
+
+    const optional = parse(readFileSync(new URL("../render.cron.yaml", import.meta.url), "utf8")) as {
+      services: Service[];
+    };
+    expect(optional.services[0]?.type).toBe("cron");
+    expect(optional.services[0]?.schedule).toBe("0 8 * * *");
+    expect(optional.services[0]?.startCommand).toContain("reminders");
+    expect(optional.services[0]?.plan).toBe("0.5c-512mb");
   });
 
   it("wires DATABASE_URL from the database and lists every env example key", () => {

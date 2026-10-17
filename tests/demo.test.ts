@@ -90,6 +90,8 @@ describe("UK-wide copy", () => {
     "src/lib/demo.ts",
     "prisma/seed.ts",
     "scripts/demo.ts",
+    "scripts/demo-on-start.ts",
+    "render.cron.yaml",
     "src/app/page.tsx",
   ];
 

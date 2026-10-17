@@ -75,28 +75,29 @@ You only need `DATABASE_URL`. Leave `OPENAI_API_KEY`, the Stripe keys and SMTP e
 
 The public sample page is `/t/sample-harbour-heating`. Draft quotes on it stay hidden until you approve them inside the demo.
 
-On Render, leave `DEMO_MODE` false (the blueprint already does). Do not point `npm run demo` at a database that holds real traders unless you mean to reset the sample account there. `npm start` loads job templates only. It does not create the sample trader.
+`npm start` (the Render start command) applies migrations, loads the job templates, then runs the same sample reset **only when `DEMO_MODE` is `true`**. Any other value leaves the sample account unchanged. A free Render service runs that start command again when it wakes, so the sample trader is reset on each wake while demo mode is on. Other traders are not touched.
 
 ## Deploy on Render
 
-This app is set up for [Render](https://render.com), not Vercel. `render.yaml` describes the web service, a Postgres database, and a daily reminder job.
+This app is set up for [Render](https://render.com), not Vercel. `render.yaml` describes a free web service and a free Postgres database. It does not create a cron job.
 
 1. Push this repository to GitHub.
 2. In the Render dashboard, choose **New → Blueprint**.
 3. Connect the GitHub account and select this repository. Render reads `render.yaml`.
-4. When Render asks for environment variables marked “sync: false”, you can leave the optional ones empty:
-   - `OPENAI_API_KEY` — leave empty to use templates only.
-   - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` — leave empty and deposits stay as a note, with no card payment.
-   - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` — leave empty and emails are written to the service logs instead of being sent.
-   - `SPLITSTICK_WEBHOOK_SECRET` — leave empty. The Splitstick endpoint stays switched off.
-5. Apply the blueprint. The first deploy runs `npm start`, which applies database migrations and loads the job templates before the site starts.
-6. Open the `onrender.com` address Render gives the web service and create an account.
+4. Set the web service environment as follows. The blueprint fills the generated values. You only need to change `DEMO_MODE` if you want the sample business.
+   - `DEMO_MODE` — set to `true` to click around the sample trader. The blueprint default is `false`. Change it on the blueprint review screen, or later under **Environment**, then use **Manual Deploy** so the new value is picked up at start.
+   - Leave empty: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`.
+   - Leave the blueprint values: `DATABASE_URL` (from Postgres), `SESSION_SECRET` (generated), `APP_URL` (from `RENDER_EXTERNAL_URL`), `CRON_SECRET` (generated), `SHOW_DEV_LINKS` = `false`, `NODE_ENV` = `production`, `NODE_VERSION` = `22`, `OPENAI_MODEL` = `gpt-4o-mini`, `SMTP_PORT` = `587`.
+5. Apply the blueprint. You do not need a Render shell. The start command is `npm start`, which runs `prisma migrate deploy`, loads the job templates, and resets the sample trader when `DEMO_MODE` is `true`.
+6. Open the `onrender.com` address and click **Try the demo**.
 
-`APP_URL` is set from Render’s own `RENDER_EXTERNAL_URL`, so quote links use the public address. `SESSION_SECRET` and `CRON_SECRET` are generated for you. `SHOW_DEV_LINKS` is false, so magic links are not printed on the sign-in page.
+No shell is required. Migrations run at the start of every deploy and every cold start, before the site listens. A pre-deploy command is not used, because the free web service runs the start command and that is enough.
 
-The blueprint uses Render’s **free** web service and **free** Postgres so you can try it without picking a larger plan. A free web service sleeps when it is idle, which makes the trader’s public page slow to wake up. Before real customers use it, change the web service plan to `0.5c-512mb` (or larger) in `render.yaml` or in the dashboard. If a free database is not available on the account, set the database plan to `0.1c-256mb`.
+`SHOW_DEV_LINKS` stays false, so magic links are not printed on the sign-in page.
 
-The reminder cron job cannot be free. The smallest cron plan is `0.5c-512mb`. If you do not want that service, delete `quotestick-reminders` from the blueprint before you apply it, and use the HTTP reminder endpoint below instead.
+The blueprint uses Render’s **free** web service and **free** Postgres. A free web service sleeps when it is idle, and the next visit runs `npm start` again. While `DEMO_MODE` is `true`, that also resets the sample trader. Before real customers use the site, set `DEMO_MODE` back to `false` and change the web service plan to `0.5c-512mb` (or larger). If a free database is not available on the account, set the database plan to `0.1c-256mb`.
+
+Daily reminder emails are optional and are not in the default blueprint, because a Render cron job has no free plan (smallest is `0.5c-512mb`). The HTTP check is free aside from the web service itself: `GET` or `POST` `https://<your-app>/api/cron/reminders` with header `Authorization: Bearer <CRON_SECRET>`. To add the paid cron later, paste the service from `render.cron.yaml` into `render.yaml` and sync the blueprint, or create a cron job in the dashboard with those settings.
 
 Postgres only accepts connections from inside Render (`ipAllowList: []`). The web service uses the internal database URL.
 
@@ -119,7 +120,7 @@ Every variable is listed in `.env.example`.
 | `CRON_SECRET` | For the HTTP reminder | Bearer token for `/api/cron/reminders`. |
 | `SPLITSTICK_WEBHOOK_SECRET` | No | Bearer token for a future receipt feed. |
 | `SHOW_DEV_LINKS` | Local only | When `true` (and not production), the sign-in page shows the magic link. |
-| `DEMO_MODE` | No | When `true`, **Try the demo** signs into the sample trader from `npm run demo`. Leave false when real traders use the site. |
+| `DEMO_MODE` | No | When `true`, **Try the demo** is shown and `npm start` creates or resets the sample trader. Any other value does neither. |
 
 ## Quotes
 
@@ -165,8 +166,8 @@ Reminders look at expiry dates. An item is due from `reminderDays` before it exp
 
 Two ways to run the check:
 
-- Render cron, from `render.yaml`, every day at 08:00 UTC: `npm run reminders` (`scripts/reminders.ts`). It logs the result and emails the trader when SMTP is set. Otherwise it logs the email.
-- HTTP: `POST /api/cron/reminders` or `GET /api/cron/reminders` with header `Authorization: Bearer <CRON_SECRET>`. The route does nothing useful until `CRON_SECRET` is set.
+- HTTP, which works on the free web service: `POST /api/cron/reminders` or `GET /api/cron/reminders` with header `Authorization: Bearer <CRON_SECRET>`. The route does nothing useful until `CRON_SECRET` is set. The blueprint generates that secret.
+- Optional paid Render cron, every day at 08:00 UTC: `npm run reminders` (`scripts/reminders.ts`). It is described in `render.cron.yaml` and is not created by the default blueprint. It logs the result and emails the trader when SMTP is set. Otherwise it logs the email.
 
 Updating `lastRemindedAt` happens after a successful log or send, so a failed send is tried again on the next run.
 
