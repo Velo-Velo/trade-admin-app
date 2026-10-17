@@ -1,6 +1,6 @@
 # Quotestick
 
-Quotestick is a working name for a small admin app for UK tradespeople. This first version gives a trader an account, a one-page website, a start-up checklist, and draft quotes. **Nothing is sent to a customer until the trader checks the quote and taps Approve.**
+Quotestick is a working name for a small admin app for tradespeople anywhere in the UK. This first version gives a trader an account, a one-page website, a start-up checklist, and draft quotes. **Nothing is sent to a customer until the trader checks the quote and taps Approve.**
 
 Plumbing and heating job templates are included. Electrical, building and other trades can still sign up; their drafts start from a blank labour and materials allowance until templates for those trades are added.
 
@@ -50,6 +50,33 @@ You need Node.js 22 and PostgreSQL.
 
 `npm test` runs the unit tests. They do not need the database. The approval tests check that a draft cannot be turned into a customer link, and that a known token is still hidden until the quote is approved.
 
+## Try the demo
+
+The sample business is fictional plumbing and heating data: a public page, four enquiries, two drafts waiting for approval, one sent quote, one accepted quote, a price book with last-paid figures, and a checklist that is only partly done. Registration numbers and prices are made up.
+
+You only need `DATABASE_URL`. Leave `OPENAI_API_KEY`, the Stripe keys and SMTP empty. Locally you can also leave `SESSION_SECRET` empty; a development fallback signs the cookie. In production that secret is required.
+
+1. In `.env`, set `DATABASE_URL` and `DEMO_MODE=true`.
+2. Load the sample trader (this also applies migrations and the job templates):
+
+   ```bash
+   npm run demo
+   ```
+
+3. Start the app and open [http://localhost:3000](http://localhost:3000):
+
+   ```bash
+   npm run dev
+   ```
+
+4. Click **Try the demo**. The same button is on the sign-in page. A banner stays on screen so the sample business is not mistaken for a real one.
+
+`DEMO_MODE` must be the string `true`. Anything else hides the button, and password or magic-link sign-in to `sample.trader@example.com` is refused. The sample account has no password. Running `npm run demo` again resets only that account.
+
+The public sample page is `/t/sample-harbour-heating`. Draft quotes on it stay hidden until you approve them inside the demo.
+
+On Render, leave `DEMO_MODE` false (the blueprint already does). Do not point `npm run demo` at a database that holds real traders unless you mean to reset the sample account there. `npm start` loads job templates only. It does not create the sample trader.
+
 ## Deploy on Render
 
 This app is set up for [Render](https://render.com), not Vercel. `render.yaml` describes the web service, a Postgres database, and a daily reminder job.
@@ -92,6 +119,7 @@ Every variable is listed in `.env.example`.
 | `CRON_SECRET` | For the HTTP reminder | Bearer token for `/api/cron/reminders`. |
 | `SPLITSTICK_WEBHOOK_SECRET` | No | Bearer token for a future receipt feed. |
 | `SHOW_DEV_LINKS` | Local only | When `true` (and not production), the sign-in page shows the magic link. |
+| `DEMO_MODE` | No | When `true`, **Try the demo** signs into the sample trader from `npm run demo`. Leave false when real traders use the site. |
 
 ## Quotes
 

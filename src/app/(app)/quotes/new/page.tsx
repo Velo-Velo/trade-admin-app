@@ -29,7 +29,7 @@ export default async function NewQuotePage({
         </label>
         <label className={labelClass}>
           Postcode
-          <input className={inputClass} name="postcode" required placeholder="CO1 1AA" />
+          <input className={inputClass} name="postcode" required placeholder="SW1A 1AA" />
         </label>
         <label className={labelClass}>
           Job

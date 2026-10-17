@@ -36,5 +36,6 @@ describe("render blueprint", () => {
       expect(rendered.has(key), key).toBe(true);
     }
     expect(web?.envVars?.find((item) => item.key === "SHOW_DEV_LINKS")?.value).toBe("false");
+    expect(web?.envVars?.find((item) => item.key === "DEMO_MODE")?.value).toBe("false");
   });
 });

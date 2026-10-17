@@ -63,6 +63,8 @@ services:
         sync: false
       - key: SHOW_DEV_LINKS
         value: "false"
+      - key: DEMO_MODE
+        value: "false"
 
   - type: cron
     name: quotestick-reminders

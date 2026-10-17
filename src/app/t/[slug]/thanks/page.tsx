@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { DemoBanner } from "@/components/demo-banner";
+import { isDemoSlug } from "@/lib/demo";
 import { prisma } from "@/lib/db";
 
 export const metadata = { title: "Enquiry sent", robots: { index: false, follow: false } };
@@ -9,6 +11,8 @@ export default async function ThanksPage({ params }: { params: Promise<{ slug: s
   if (!trader) notFound();
 
   return (
+    <div className="min-h-screen">
+      {isDemoSlug(trader.slug) ? <DemoBanner kind="sample" /> : null}
     <main id="main" className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-5">
       <p className="text-sm font-semibold uppercase tracking-wide text-pine">{trader.businessName}</p>
       <h1 className="mt-2 font-serif text-4xl">Thanks, that has been sent</h1>
@@ -19,5 +23,6 @@ export default async function ThanksPage({ params }: { params: Promise<{ slug: s
         Back to the page
       </a>
     </main>
+    </div>
   );
 }

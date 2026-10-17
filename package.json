@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "demo": "prisma migrate deploy && tsx prisma/seed.ts && tsx scripts/demo.ts",
     "reminders": "tsx scripts/reminders.ts",
     "postinstall": "prisma generate"
   },

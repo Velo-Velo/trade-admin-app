@@ -37,7 +37,7 @@ export function parseEnquiryFields(input: {
   const contactError = emailOrPhoneError(contact);
   if (contactError) return { ok: false, error: contactError };
   if (!ukPostcode.test(postcode)) {
-    return { ok: false, error: "Enter a UK postcode, such as CO1 1AA." };
+    return { ok: false, error: "Enter a full UK postcode, such as SW1A 1AA." };
   }
   if (jobDescription.length < 10 || jobDescription.length > 4000) {
     return { ok: false, error: "Describe the job in a sentence or two." };

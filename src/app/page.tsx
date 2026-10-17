@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { DemoBanner } from "@/components/demo-banner";
+import { buttonPrimary } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { demoModeEnabled } from "@/lib/demo";
+import { signInDemo } from "@/server/auth-actions";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -14,8 +18,11 @@ export default async function HomePage() {
   if (user?.trader) redirect("/dashboard");
   if (user) redirect("/onboarding");
 
+  const demo = demoModeEnabled();
+
   return (
     <div className="min-h-screen">
+      {demo ? <DemoBanner kind="mode" /> : null}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
         <p className="font-serif text-2xl">Quotestick</p>
         <nav className="flex gap-2">
@@ -34,10 +41,17 @@ export default async function HomePage() {
             Your page, your checklist, and quotes you approve first.
           </h1>
           <p className="mt-4 text-lg leading-7 text-muted">
-            Set up a one-page website, take enquiries, and turn each one into a draft quote.
+            For tradespeople anywhere in the UK. Set up a one-page website, take enquiries, and turn each one into a draft quote.
             The customer cannot open it until you have checked the lines and tapped approve.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
+            {demo ? (
+              <form action={signInDemo}>
+                <button className={buttonPrimary} type="submit">
+                  Try the demo
+                </button>
+              </form>
+            ) : null}
             <a href="/register" className="inline-flex min-h-11 items-center rounded-xl bg-pine px-4 py-3 font-semibold text-white no-underline">
               Create a free account
             </a>

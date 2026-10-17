@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DemoBanner } from "@/components/demo-banner";
 import { Flash } from "@/components/flash";
 import { buttonPrimary, inputClass, labelClass } from "@/components/styles";
 import { foregroundFor } from "@/lib/brand";
 import { badgesForWebsite } from "@/lib/checklist/catalog";
 import { prisma } from "@/lib/db";
 import { firstParam, telHref } from "@/lib/format";
+import { isDemoSlug } from "@/lib/demo";
 import { defaultIntro, postcodeChips, serviceLines, tradeLabel } from "@/lib/trades";
 import { submitEnquiry } from "@/server/enquiry-actions";
 
@@ -18,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: { absolute: `${trader.businessName} · ${tradeLabel(trader.trade)} in ${trader.area}` },
     description: defaultIntro(trader),
-    robots: { index: true, follow: true },
+    robots: isDemoSlug(trader.slug) ? { index: false, follow: false } : { index: true, follow: true },
   };
 }
 
@@ -43,6 +45,7 @@ export default async function TraderSitePage({
 
   return (
     <div className="min-h-screen bg-paper">
+      {isDemoSlug(trader.slug) ? <DemoBanner kind="sample" /> : null}
       <header style={{ background: trader.brandColour, color: ink }}>
         <div className="mx-auto max-w-3xl px-5 py-10">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] opacity-80">{tradeLabel(trader.trade)}</p>
@@ -132,7 +135,7 @@ export default async function TraderSitePage({
             </label>
             <label className={labelClass}>
               Postcode
-              <input className={inputClass} name="postcode" required autoComplete="postal-code" placeholder="CO1 1AA" />
+              <input className={inputClass} name="postcode" required autoComplete="postal-code" placeholder="SW1A 1AA" />
             </label>
             <label className={labelClass}>
               What needs doing?

@@ -52,15 +52,15 @@ export function OnboardingForm() {
       </label>
       <label className={labelClass}>
         Area you cover
-        <input className={inputClass} name="area" required maxLength={120} placeholder="Colchester and nearby villages" />
+        <input className={inputClass} name="area" required maxLength={120} placeholder="Towns and cities you cover" />
       </label>
       <label className={labelClass}>
         Postcodes
-        <input className={inputClass} name="postcodes" required maxLength={200} placeholder="CO1, CO2, CO3" />
+        <input className={inputClass} name="postcodes" required maxLength={200} placeholder="Postcode districts you cover" />
       </label>
       <label className={labelClass}>
         Phone
-        <input className={inputClass} name="phone" required inputMode="tel" autoComplete="tel" placeholder="07000 900000" />
+        <input className={inputClass} name="phone" required inputMode="tel" autoComplete="tel" placeholder="07700 900000" />
       </label>
       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
         <label className={labelClass}>

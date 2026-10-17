@@ -57,7 +57,7 @@ describe("price book and delivery hooks", () => {
   it("picks readable text on a light brand colour", () => {
     expect(foregroundFor("#f6e27a")).toBe("#1c1915");
     expect(foregroundFor("#1f4a38")).toBe("#fffdf9");
-    expect(slugify("North Quay Heating (demo)")).toBe("north-quay-heating-demo");
+    expect(slugify("Sample Harbour Heating")).toBe("sample-harbour-heating");
   });
 
   it("sends email and refuses WhatsApp until a sender is registered", async () => {

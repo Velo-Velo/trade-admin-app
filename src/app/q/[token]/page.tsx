@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CoolingOff } from "@/components/cooling-off";
+import { DemoBanner } from "@/components/demo-banner";
 import { Flash } from "@/components/flash";
 import { buttonClay, buttonPrimary, buttonSecondary } from "@/components/styles";
 import { prisma } from "@/lib/db";
 import { firstParam, formatDate, formatGBP, formatQuantity, quoteTotals, telHref } from "@/lib/format";
 import { foregroundFor } from "@/lib/brand";
+import { isDemoSlug } from "@/lib/demo";
 import { resolvePublicQuoteView } from "@/lib/quotes/approval";
 import { stripeConfigured } from "@/lib/stripe";
 import { acceptQuote, declineQuote, startDeposit } from "@/server/customer-actions";
@@ -50,6 +52,7 @@ export default async function PublicQuotePage({
 
   return (
     <div className="min-h-screen bg-paper">
+      {isDemoSlug(visible.trader.slug) ? <DemoBanner kind="sample" /> : null}
       <header style={{ background: visible.trader.brandColour, color: ink }}>
         <div className="mx-auto max-w-2xl px-5 py-8">
           <p className="font-serif text-3xl">{visible.trader.logoText}</p>
