@@ -1,0 +1,111 @@
+# Quotestick on Render. In the Render dashboard: New → Blueprint, then pick this repo.
+# The free web service sleeps when nobody is using it. Change plan to 0.5c-512mb
+# before customers rely on the public pages.
+# The cron job has no free plan (smallest is 0.5c-512mb). You can delete that
+# service and call POST /api/cron/reminders from another scheduler instead.
+# See README.md.
+
+databases:
+  - name: quotestick-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    databaseName: quotestick
+    user: quotestick
+    ipAllowList: []
+
+services:
+  - type: web
+    name: quotestick
+    runtime: node
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quotestick-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_URL
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: SPLITSTICK_WEBHOOK_SECRET
+        sync: false
+      - key: SHOW_DEV_LINKS
+        value: "false"
+
+  - type: cron
+    name: quotestick-reminders
+    runtime: node
+    plan: 0.5c-512mb
+    region: frankfurt
+    schedule: "0 8 * * *"
+    buildCommand: npm ci --include=dev && npx prisma generate
+    startCommand: npm run reminders
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quotestick-db
+          property: connectionString
+      - key: APP_URL
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: APP_URL
+      - key: SMTP_HOST
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_HOST
+      - key: SMTP_PORT
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_PORT
+      - key: SMTP_USER
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_USER
+      - key: SMTP_PASSWORD
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_PASSWORD
+      - key: SMTP_FROM
+        fromService:
+          name: quotestick
+          type: web
+          envVarKey: SMTP_FROM
