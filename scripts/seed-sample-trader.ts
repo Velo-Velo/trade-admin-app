@@ -9,6 +9,8 @@ import {
   DEMO_TRADER,
   demoChecklistSeed,
 } from "../src/lib/demo";
+import { customerSearchText, normalisePhone } from "../src/lib/customers/match";
+import { ensureBookedJob } from "../src/lib/jobs/ensure";
 import { coolingOffFor } from "../src/lib/quotes/cooling-off";
 import { buildDraftQuote, describeDraft } from "../src/lib/quotes/draft";
 import { PLUMBING_TEMPLATES } from "../src/lib/templates/plumbing";
@@ -47,12 +49,14 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
     lines: template.lines,
   }));
 
+  const samplePhotos = await sampleJobPhotos();
   await prisma.$transaction(async (tx) => {
     const existing = await tx.user.findUnique({
       where: { email: DEMO_EMAIL },
       include: { trader: true },
     });
     if (existing?.trader) {
+      await tx.job.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.quote.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.enquiry.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.priceBookItem.deleteMany({ where: { traderId: existing.trader.id } });
@@ -122,6 +126,32 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       lastPaidPence: row.lastPaidPence,
     }));
 
+    const people = [
+      { name: "Alex Sample", email: "alex.sample@example.com", phone: "", postcode: "SW1A 1AA", address: "2 Sample Close, London" },
+      { name: "Priya Sample", email: "", phone: "07700 900201", postcode: "M1 1AE", address: "" },
+      { name: "Jordan Sample", email: "jordan.sample@example.com", phone: "", postcode: "EH1 1AA", address: "" },
+      { name: "Sam Sample", email: "sam.sample@example.com", phone: "", postcode: "CF10 1AA", address: "18 Sample Lane, Cardiff" },
+      { name: "Mrs Jones Sample", email: "mrs.jones.sample@example.com", phone: "", postcode: "LS1 1AA", address: "8 Sample Road, Leeds" },
+      { name: "Riley Sample", email: "", phone: "07700 900301", postcode: "BS1 4ST", address: "14 Sample Street, Bristol" },
+    ];
+    const customers = new Map<string, { id: string }>();
+    for (const person of people) {
+      const phone = normalisePhone(person.phone);
+      const customer = await tx.customer.create({
+        data: {
+          traderId: trader.id,
+          name: person.name,
+          email: person.email,
+          phone,
+          postcode: person.postcode,
+          address: person.address,
+          searchText: customerSearchText({ ...person, phone }),
+        },
+      });
+      customers.set(person.name, customer);
+    }
+
+    let acceptedQuoteId = "";
     for (const enquiryInput of DEMO_ENQUIRIES) {
       const draft = await buildDraftQuote({
         trade: "PLUMBING_HEATING",
@@ -136,15 +166,27 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       });
       const number = `Q-${String(updated.quoteSeq).padStart(4, "0")}`;
       const createdAt = daysAgo(enquiryInput.daysAgo);
+      const person = customers.get(enquiryInput.customerName);
       const enquiry = await tx.enquiry.create({
         data: {
           traderId: trader.id,
+          customerId: person?.id,
           customerName: enquiryInput.customerName,
           contact: enquiryInput.contact,
           postcode: enquiryInput.postcode,
           jobDescription: enquiryInput.jobDescription,
           source: "website",
           createdAt,
+          photos:
+            enquiryInput.customerName === "Sam Sample"
+              ? {
+                  create: {
+                    filename: "cistern-before.jpg",
+                    mimeType: "image/jpeg",
+                    bytes: samplePhotos.cistern,
+                  },
+                }
+              : undefined,
         },
       });
 
@@ -152,9 +194,10 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       const approvedAt = status === "DRAFT" ? null : daysAgo(Math.max(enquiryInput.daysAgo - 1, 0));
       const acceptedAt = status === "ACCEPTED" ? daysAgo(Math.max(enquiryInput.daysAgo - 2, 0)) : null;
       const hasEmail = enquiryInput.contact.includes("@");
-      await tx.quote.create({
+      const quote = await tx.quote.create({
         data: {
           traderId: trader.id,
+          customerId: person?.id,
           enquiryId: enquiry.id,
           number,
           status,
@@ -217,6 +260,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
           },
         },
       });
+      if (status === "ACCEPTED") acceptedQuoteId = quote.id;
       if (draft.templateSlug === null) {
         throw new Error(`Sample enquiry did not match a template: ${number}`);
       }
@@ -249,6 +293,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         traderId: trader.id,
         number: "I-0001",
         status: "SENT",
+        customerId: customers.get("Mrs Jones Sample")?.id,
         customerName: "Mrs Jones Sample",
         customerContact: "mrs.jones.sample@example.com",
         description: "Replaced a kitchen tap. Sample invoice, not a real job.",
@@ -290,11 +335,12 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       },
     });
     const paidAt = daysAgo(3);
-    await tx.invoice.create({
+    const paid = await tx.invoice.create({
       data: {
         traderId: trader.id,
         number: "I-0002",
         status: "PAID",
+        customerId: customers.get("Alex Sample")?.id,
         customerName: "Alex Sample",
         customerContact: "alex.sample@example.com",
         description: "Supply and fit a basin tap. Sample invoice, already paid.",
@@ -351,9 +397,10 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         },
       },
     });
-    await tx.invoice.create({
+    const draftInvoice = await tx.invoice.create({
       data: {
         traderId: trader.id,
+        customerId: customers.get("Sam Sample")?.id,
         number: "I-0003",
         status: "DRAFT",
         customerName: "Sam Sample",
@@ -385,6 +432,78 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       },
     });
     await tx.trader.update({ where: { id: trader.id }, data: { invoiceSeq: 3 } });
+
+    const booked = await ensureBookedJob(tx, acceptedQuoteId);
+    if (!booked) throw new Error("The accepted sample quote did not create a booked job.");
+    await tx.job.update({ where: { id: booked.id }, data: { invoiceId: draftInvoice.id } });
+
+    const riley = customers.get("Riley Sample");
+    const jones = customers.get("Mrs Jones Sample");
+    const alex = customers.get("Alex Sample");
+    if (!riley || !jones || !alex) throw new Error("Sample customers were not created.");
+
+    await tx.job.create({
+      data: {
+        traderId: trader.id,
+        customerId: riley.id,
+        title: "Outside tap is dripping",
+        address: "14 Sample Street, Bristol",
+        postcode: "BS1 4ST",
+        status: "IN_PROGRESS",
+        bookedAt: daysAgo(4),
+        startedAt: daysAgo(1),
+        photos: {
+          create: {
+            kind: "BEFORE",
+            filename: "outside-tap-before.jpg",
+            mimeType: "image/jpeg",
+            bytes: samplePhotos.outside,
+          },
+        },
+      },
+    });
+    await tx.job.create({
+      data: {
+        traderId: trader.id,
+        customerId: jones.id,
+        invoiceId: unpaid.id,
+        title: "Replaced a kitchen tap",
+        address: "8 Sample Road, Leeds",
+        postcode: "LS1 1AA",
+        status: "DONE",
+        bookedAt: daysAgo(7),
+        startedAt: daysAgo(6),
+        doneAt: daysAgo(4),
+        photos: {
+          create: [
+            { kind: "BEFORE", filename: "kitchen-tap-before.jpg", mimeType: "image/jpeg", bytes: samplePhotos.beforeTap },
+            { kind: "AFTER", filename: "kitchen-tap-after.jpg", mimeType: "image/jpeg", bytes: samplePhotos.afterTap },
+          ],
+        },
+      },
+    });
+    await tx.job.create({
+      data: {
+        traderId: trader.id,
+        customerId: alex.id,
+        invoiceId: paid.id,
+        title: "Supply and fit a basin tap",
+        address: "2 Sample Close, London",
+        postcode: "SW1A 1AA",
+        status: "DONE",
+        bookedAt: daysAgo(14),
+        startedAt: daysAgo(12),
+        doneAt: daysAgo(3),
+        photos: {
+          create: {
+            kind: "AFTER",
+            filename: "basin-tap-after.jpg",
+            mimeType: "image/jpeg",
+            bytes: samplePhotos.basin,
+          },
+        },
+      },
+    });
     const phone = "447700900100";
     await tx.whatsAppMessage.createMany({
       data: [
@@ -404,9 +523,40 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         },
       ],
     });
-  });
+  }, { timeout: 20_000 });
 
   console.log(`Job templates ready (${templates}).`);
   console.log(`Sample trader reset: ${DEMO_BUSINESS_NAME} (${DEMO_EMAIL})`);
   console.log(`Public page: /t/${DEMO_SLUG}`);
+}
+
+async function sampleJobPhotos(): Promise<{
+  cistern: Buffer;
+  outside: Buffer;
+  beforeTap: Buffer;
+  afterTap: Buffer;
+  basin: Buffer;
+}> {
+  const sharp = (await import("sharp")).default;
+  async function card(red: number, green: number, blue: number, band: number): Promise<Buffer> {
+    const base = await sharp({
+      create: { width: 800, height: 500, channels: 3, background: { r: red, g: green, b: blue } },
+    })
+      .png()
+      .toBuffer();
+    const stripe = await sharp({
+      create: { width: 800, height: 72, channels: 3, background: { r: band, g: band, b: band } },
+    })
+      .png()
+      .toBuffer();
+    return sharp(base).composite([{ input: stripe, top: 36, left: 0 }]).jpeg({ quality: 70 }).toBuffer();
+  }
+  const [cistern, outside, beforeTap, afterTap, basin] = await Promise.all([
+    card(210, 196, 168, 90),
+    card(168, 196, 184, 40),
+    card(196, 168, 160, 70),
+    card(176, 196, 170, 230),
+    card(170, 186, 204, 30),
+  ]);
+  return { cistern, outside, beforeTap, afterTap, basin };
 }

@@ -11,6 +11,7 @@ import {
 import { redirect } from "next/navigation";
 import { redirectWith } from "@/lib/redirects";
 import { stripeClient } from "@/lib/stripe";
+import { ensureBookedJob } from "@/lib/jobs/ensure";
 
 async function loadVisible(token: string) {
   const quote = await prisma.quote.findUnique({
@@ -33,6 +34,11 @@ export async function acceptQuote(formData: FormData) {
     where: { id: quote.id },
     data: { status: "ACCEPTED", acceptedAt: new Date() },
   });
+  try {
+    await ensureBookedJob(prisma, quote.id);
+  } catch (error) {
+    console.error("[job]", error);
+  }
   await prisma.quoteEvent.create({
     data: {
       quoteId: quote.id,

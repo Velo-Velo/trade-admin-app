@@ -56,6 +56,13 @@ export default async function DashboardPage() {
           </article>
         ))}
       </section>
+      <section className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-2xl">Jobs</h2>
+          <p className="mt-1 text-sm text-muted">Booked, in progress and done. Accepted quotes appear in Booked.</p>
+        </div>
+        <a href="/jobs" className="text-sm font-semibold">Open the board</a>
+      </section>
       <form action={createInvoiceFromText} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Quick invoice</h2>
         <p className="text-sm text-muted">One line creates a draft. The customer is not sent anything until you approve it.</p>

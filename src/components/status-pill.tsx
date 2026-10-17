@@ -4,6 +4,9 @@ const styles: Record<string, string> = {
   ACCEPTED: "bg-emerald-100 text-emerald-950",
   DECLINED: "bg-stone-200 text-stone-700",
   PAID: "bg-emerald-100 text-emerald-950",
+  BOOKED: "bg-amber-100 text-amber-950",
+  IN_PROGRESS: "bg-sky-100 text-sky-950",
+  DONE: "bg-emerald-100 text-emerald-950",
 };
 
 const labels: Record<string, string> = {
@@ -12,6 +15,9 @@ const labels: Record<string, string> = {
   ACCEPTED: "Accepted",
   DECLINED: "Declined",
   PAID: "Paid",
+  BOOKED: "Booked",
+  IN_PROGRESS: "In progress",
+  DONE: "Done",
 };
 
 export function StatusPill({ status }: { status: string }) {

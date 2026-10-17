@@ -33,7 +33,7 @@ export default async function InvoicePage({
   const query = await searchParams;
   const invoice = await prisma.invoice.findFirst({
     where: { id, traderId: user.trader.id },
-    include: { events: { orderBy: { createdAt: "asc" } } },
+    include: { events: { orderBy: { createdAt: "asc" } }, job: { select: { id: true, title: true } } },
   });
   if (!invoice) notFound();
   const origin = await requestOrigin();
@@ -47,6 +47,7 @@ export default async function InvoicePage({
           <p className="text-sm font-semibold text-muted">{invoice.number}</p>
           <h1 className="font-serif text-4xl">{invoice.customerName}</h1>
           <p className="mt-1 text-sm text-muted">Due {formatDate(invoice.dueAt)} · {formatGBP(invoice.totalPence)}</p>
+          {invoice.job ? <p className="mt-2 text-sm"><a href={`/jobs/${invoice.job.id}`}>{invoice.job.title}</a></p> : null}
         </div>
         <StatusPill status={invoice.status} />
       </div>
