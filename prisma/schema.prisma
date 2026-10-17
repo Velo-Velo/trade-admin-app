@@ -39,6 +39,12 @@ enum PriceSource {
   SPLITSTICK
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -83,15 +89,29 @@ model Trader {
   logoText     String
   brandColour  String
   services     String
-  bio          String   @default("")
-  quoteSeq     Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  enquiries    Enquiry[]
-  quotes       Quote[]
-  priceItems   PriceBookItem[]
-  checklist    ChecklistItem[]
+  bio                   String   @default("")
+  quoteSeq              Int      @default(0)
+  invoiceSeq            Int      @default(0)
+  whatsappE164          String?  @unique
+  whatsappLinkCodeHash  String?
+  whatsappLinkExpiresAt DateTime?
+  bankAccountName       String   @default("")
+  bankSortCode          String   @default("")
+  bankAccountNumber     String   @default("")
+  tradingAddress        String   @default("")
+  vatRegistered         Boolean  @default(false)
+  vatNumber             String   @default("")
+  googleReviewUrl       String   @default("")
+  reviewChasersEnabled  Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enquiries             Enquiry[]
+  quotes                Quote[]
+  invoices              Invoice[]
+  priceItems            PriceBookItem[]
+  checklist             ChecklistItem[]
+  whatsappMessages      WhatsAppMessage[]
 }
 
 model Enquiry {
@@ -181,9 +201,17 @@ model Quote {
   sentAt          DateTime?
   acceptedAt      DateTime?
   declinedAt      DateTime?
-  depositPaidAt   DateTime?
-  stripeSessionId String?
-  createdAt       DateTime    @default(now())
+  depositPaidAt       DateTime?
+  stripeSessionId     String?
+  stripePaymentLinkId String?
+  stripePaymentUrl    String?
+  reviewToken         String?     @unique
+  reviewChaserEnabled Boolean     @default(true)
+  reviewStage         Int         @default(0)
+  lastReviewAt        DateTime?
+  reviewClickedAt     DateTime?
+  jobCompletedAt      DateTime?
+  createdAt           DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   trader          Trader      @relation(fields: [traderId], references: [id], onDelete: Cascade)
   enquiry         Enquiry?    @relation(fields: [enquiryId], references: [id])
@@ -192,6 +220,7 @@ model Quote {
 
   @@unique([traderId, number])
   @@index([traderId, status])
+  @@index([stripePaymentLinkId])
 }
 
 model QuoteLine {
@@ -241,4 +270,81 @@ model ChecklistItem {
 
   @@unique([traderId, key])
   @@index([expiresAt])
+}
+
+model Invoice {
+  id                  String        @id @default(cuid())
+  traderId            String
+  number              String
+  status              InvoiceStatus @default(DRAFT)
+  customerName        String
+  customerContact     String        @default("")
+  description         String
+  netPence            Int
+  vatPence            Int
+  totalPence          Int
+  vatRate             Int           @default(0)
+  publicToken         String        @unique
+  dueAt               DateTime
+  chaserEnabled       Boolean       @default(true)
+  chaserStage         Int           @default(0)
+  lastChasedAt        DateTime?
+  paidAt              DateTime?
+  approvedAt          DateTime?
+  sentAt              DateTime?
+  stripePaymentLinkId String?
+  stripePaymentUrl    String?
+  businessName        String
+  phone               String
+  tradingAddress      String        @default("")
+  vatNumber           String        @default("")
+  bankAccountName     String        @default("")
+  bankSortCode        String        @default("")
+  bankAccountNumber   String        @default("")
+  reviewToken         String        @unique
+  reviewChaserEnabled Boolean       @default(true)
+  reviewStage         Int           @default(0)
+  lastReviewAt        DateTime?
+  reviewClickedAt     DateTime?
+  jobCompletedAt      DateTime?
+  source              String        @default("dashboard")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  trader              Trader        @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  events              InvoiceEvent[]
+
+  @@unique([traderId, number])
+  @@index([traderId, status])
+  @@index([dueAt])
+  @@index([stripePaymentLinkId])
+}
+
+model InvoiceEvent {
+  id        String   @id @default(cuid())
+  invoiceId String
+  type      String
+  channel   String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model WhatsAppMessage {
+  id        String   @id @default(cuid())
+  traderId  String?
+  phone     String
+  direction String
+  body      String
+  createdAt DateTime @default(now())
+  trader    Trader?  @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@index([phone, createdAt])
+  @@index([traderId, createdAt])
+}
+
+model WhatsAppReceipt {
+  id        String   @id
+  createdAt DateTime @default(now())
 }

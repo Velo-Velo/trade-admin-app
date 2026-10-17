@@ -3,7 +3,10 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { deliver } from "@/lib/channels";
-import { customerEmail, parseQuantity, poundsToPence } from "@/lib/format";
+import { customerEmail, parseQuantity, poundsToPence, quoteTotals } from "@/lib/format";
+import { newToken } from "@/lib/auth";
+import { createGbpPaymentLink } from "@/lib/payments/link";
+import { paymentNote } from "@/lib/whatsapp/plan";
 import { requestOrigin } from "@/lib/origin";
 import { approveDraft, deliveryForCustomer, validateQuoteLines, type QuoteLineInput } from "@/lib/quotes/approval";
 import { coolingOffFor } from "@/lib/quotes/cooling-off";
@@ -113,6 +116,24 @@ export async function saveQuoteAction(formData: FormData) {
   const release = deliveryForCustomer(nextStatus, quote.publicToken);
   const origin = await requestOrigin();
   const url = `${origin}${release.path}`;
+  const totals = quoteTotals(
+    lines.map((line) => ({ kind: line.kind, quantity: line.quantity, unitPricePence: line.unitPricePence })),
+    depositPercent,
+  );
+  const pay = await createGbpPaymentLink({
+    name: `Deposit for quote ${quote.number}`,
+    amountPence: totals.deposit,
+    metadata: { quoteId: quote.id },
+  });
+  await prisma.quote.update({
+    where: { id: quote.id },
+    data: {
+      stripePaymentLinkId: pay.id,
+      stripePaymentUrl: pay.url,
+      reviewToken: quote.reviewToken ?? newToken(),
+    },
+  });
+  const note = paymentNote(totals.deposit > 0 ? pay.url : null);
   const email = customerEmail(quote.customerContact);
   let detail: string;
   if (!email) {
@@ -129,6 +150,7 @@ export async function saveQuoteAction(formData: FormData) {
           `View it here: ${url}`,
           "",
           "Nothing is booked until you accept. A deposit, if there is one, is a separate step.",
+          note,
           "",
           `This was sent because you asked ${user.trader.businessName} about a job.`,
         ].join("\n"),

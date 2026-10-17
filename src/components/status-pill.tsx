@@ -3,6 +3,7 @@ const styles: Record<string, string> = {
   SENT: "bg-sky-100 text-sky-950",
   ACCEPTED: "bg-emerald-100 text-emerald-950",
   DECLINED: "bg-stone-200 text-stone-700",
+  PAID: "bg-emerald-100 text-emerald-950",
 };
 
 const labels: Record<string, string> = {
@@ -10,6 +11,7 @@ const labels: Record<string, string> = {
   SENT: "Sent",
   ACCEPTED: "Accepted",
   DECLINED: "Declined",
+  PAID: "Paid",
 };
 
 export function StatusPill({ status }: { status: string }) {

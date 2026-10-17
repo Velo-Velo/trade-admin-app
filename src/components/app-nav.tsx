@@ -2,18 +2,19 @@
 
 import { usePathname } from "next/navigation";
 
-const links = [
-  ["/dashboard", "Dashboard"],
-  ["/enquiries", "Enquiries"],
-  ["/quotes", "Quotes"],
-  ["/price-book", "Price book"],
-  ["/checklist", "Checklist"],
-  ["/business", "Your page"],
-  ["/account", "Account"],
-];
-
-export function AppNav({ slug }: { slug: string }) {
+export function AppNav({ slug, showSimulator }: { slug: string; showSimulator: boolean }) {
   const pathname = usePathname();
+  const links = [
+    ["/dashboard", "Dashboard"],
+    ["/enquiries", "Enquiries"],
+    ["/quotes", "Quotes"],
+    ["/invoices", "Invoices"],
+    ["/price-book", "Price book"],
+    ["/checklist", "Checklist"],
+    ["/business", "Your page"],
+    ["/account", "Account"],
+    ...(showSimulator ? [["/whatsapp", "WhatsApp"]] : []),
+  ];
   return (
     <header className="border-b border-sand bg-card">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
@@ -24,7 +25,7 @@ export function AppNav({ slug }: { slug: string }) {
           View your page
         </a>
       </div>
-      <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-3" aria-label="Account">
+      <nav className="mx-auto flex w-full max-w-5xl gap-1 overflow-x-auto px-4 pb-3" aria-label="Account">
         {links.map(([href, label]) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (

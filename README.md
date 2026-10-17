@@ -4,7 +4,7 @@ Quotestick is a working name for a small admin app for tradespeople anywhere in 
 
 Plumbing and heating job templates are included. Electrical, building and other trades can still sign up; their drafts start from a blank labour and materials allowance until templates for those trades are added.
 
-WhatsApp is not in this version. The quote is delivered by a web link, and by email when email is configured. The send step goes through one channel list so a WhatsApp sender can be added later without changing the approval rule.
+Quotes and invoices go out by a web link, and by email when email is configured. A trader can also send a job or an invoice by WhatsApp. Nothing reaches the customer until the trader approves it.
 
 This app does not give legal, tax or insurance advice. The cancellation wording on domestic quotes is a placeholder and is marked for a solicitor to review before anyone uses it with real customers.
 
@@ -52,7 +52,7 @@ You need Node.js 22 and PostgreSQL.
 
 ## Try the demo
 
-The sample business is fictional plumbing and heating data: a public page, four enquiries, two drafts waiting for approval, one sent quote, one accepted quote, a price book with last-paid figures, and a checklist that is only partly done. Registration numbers and prices are made up.
+The sample business is fictional plumbing and heating data: a public page, four enquiries, two drafts waiting for approval, one sent quote, one accepted quote, three invoices (a draft, one sent with payment reminders on, and one already paid), a price book with last-paid figures, and a checklist that is only partly done. Registration numbers, bank details and prices are made up.
 
 You only need `DATABASE_URL`. Leave `OPENAI_API_KEY`, the Stripe keys and SMTP empty. Locally you can also leave `SESSION_SECRET` empty; a development fallback signs the cookie. In production that secret is required.
 
@@ -77,6 +77,38 @@ The public sample page is `/t/sample-harbour-heating`. Draft quotes on it stay h
 
 `npm start` (the Render start command) applies migrations, loads the job templates, then runs the same sample reset **only when `DEMO_MODE` is `true`**. Any other value leaves the sample account unchanged. A free Render service runs that start command again when it wakes, so the sample trader is reset on each wake while demo mode is on. Other traders are not touched.
 
+With demo mode on, open `/whatsapp` after you sign in with **Try the demo**. That page is a chat simulator. It does not call Meta. The sample account already has a linked number, a paid invoice, an unpaid invoice with payment reminders switched on, and a draft invoice.
+
+## WhatsApp, invoices and reminders
+
+A trader can message the Quotestick WhatsApp number. A job description becomes a **draft quote**. A line such as `Invoice Mrs Jones, replaced tap, £80` becomes a **draft invoice** and a PDF. Quotestick replies to the trader with a summary and an approve link. They can also reply `APPROVE` or `APPROVE I-0004`. **The customer is not emailed, and the public link does not open, until that approval.**
+
+Voice notes are transcribed with OpenAI when `OPENAI_API_KEY` is set. Without that key, Quotestick asks the trader to type.
+
+Link a phone from **Your page**. Create a code, then from that phone send `LINK` and the code to the Quotestick number. The code lasts 30 minutes.
+
+Invoices use pounds. If the trader is not VAT registered, no VAT is added. If they are, the figure in the message is the total the customer pays, including VAT at 20%, unless the message says `plus VAT`. Bank details from **Your page** are printed on the PDF. Add them before you send a real invoice.
+
+Approving an invoice or a quote creates a Stripe card link when `STRIPE_SECRET_KEY` is set. The Stripe webhook marks the invoice paid, or the quote deposit paid. With no Stripe keys, the page says card payments are not switched on and no payment is taken. The trader can also mark an invoice paid (for a bank transfer). That stops payment reminders.
+
+Payment reminders are on for each new invoice. The trader can switch them off on that invoice. The sequence is the due date, 7 days later, and 14 days later. Wording gets more direct. They email the customer, and they stop when the invoice is paid. WhatsApp messages to the customer are not sent yet.
+
+After an invoice is paid, or a job is marked complete, Quotestick can email up to three notes asking for a Google review. The link is the one saved on **Your page**. The notes stop if the customer opens the link, or if the trader switches them off for that job or for the whole business.
+
+The same daily job that checks the compliance checklist also sends these reminders: `npm run reminders`, or `GET /api/cron/reminders` with `Authorization: Bearer <CRON_SECRET>`.
+
+### Meta WhatsApp setup
+
+1. Go to [developers.facebook.com](https://developers.facebook.com) and create an app. Add the WhatsApp product.
+2. In the WhatsApp API setup screen, copy the **phone number ID** (a long number, not the phone number itself) into `WHATSAPP_PHONE_NUMBER_ID`.
+3. Create a permanent token with a system user that can send WhatsApp messages. Put it in `WHATSAPP_TOKEN`. A temporary token from the API setup screen expires within a day, so it is only useful for a first test.
+4. Choose a verify token, any private string. Put the same string in `WHATSAPP_VERIFY_TOKEN` and in the Meta webhook form.
+5. Open App settings, Basic, and copy the app secret into `WHATSAPP_APP_SECRET`.
+6. Set the webhook URL to `https://<your-app>/api/whatsapp/webhook` and subscribe to the **messages** field.
+7. Deploy again so the env vars are present. Send `LINK` and the code from **Your page**.
+
+Leave all four WhatsApp variables empty if you only want the simulator. The webhook then refuses posts until the app secret is set, which stops unsigned requests being accepted.
+
 ## Deploy on Render
 
 This app is set up for [Render](https://render.com), not Vercel. `render.yaml` describes a free web service and a free Postgres database. It does not create a cron job.
@@ -86,7 +118,7 @@ This app is set up for [Render](https://render.com), not Vercel. `render.yaml` d
 3. Connect the GitHub account and select this repository. Render reads `render.yaml`.
 4. Set the web service environment as follows. The blueprint fills the generated values. You only need to change `DEMO_MODE` if you want the sample business.
    - `DEMO_MODE` — set to `true` to click around the sample trader. The blueprint default is `false`. Change it on the blueprint review screen, or later under **Environment**, then use **Manual Deploy** so the new value is picked up at start.
-   - Leave empty: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`.
+   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
    - Leave the blueprint values: `DATABASE_URL` (from Postgres), `SESSION_SECRET` (generated), `APP_URL` (from `RENDER_EXTERNAL_URL`), `CRON_SECRET` (generated), `SHOW_DEV_LINKS` = `false`, `NODE_ENV` = `production`, `NODE_VERSION` = `22`, `OPENAI_MODEL` = `gpt-4o-mini`, `SMTP_PORT` = `587`.
 5. Apply the blueprint. You do not need a Render shell. The start command is `npm start`, which runs `prisma migrate deploy`, loads the job templates, and resets the sample trader when `DEMO_MODE` is `true`.
 6. Open the `onrender.com` address and click **Try the demo**.
@@ -114,13 +146,17 @@ Every variable is listed in `.env.example`.
 | `APP_URL` | Yes for links in emails | Public site URL, no trailing slash. |
 | `OPENAI_API_KEY` | No | Adjusts draft quote wording. Templates are used when this is empty. |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini`. |
-| `STRIPE_SECRET_KEY` | No | Turns on Stripe Checkout for the deposit after a customer accepts. |
-| `STRIPE_WEBHOOK_SECRET` | No | Marks the deposit paid when Stripe calls `/api/stripe/webhook`. |
+| `STRIPE_SECRET_KEY` | No | Creates a card payment link when an invoice or a quote deposit is approved. |
+| `STRIPE_WEBHOOK_SECRET` | No | Marks an invoice or a quote deposit paid when Stripe calls `/api/stripe/webhook`. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | No | Sends mail. Without `SMTP_HOST`, messages are logged only. |
 | `CRON_SECRET` | For the HTTP reminder | Bearer token for `/api/cron/reminders`. |
 | `SPLITSTICK_WEBHOOK_SECRET` | No | Bearer token for a future receipt feed. |
 | `SHOW_DEV_LINKS` | Local only | When `true` (and not production), the sign-in page shows the magic link. |
-| `DEMO_MODE` | No | When `true`, **Try the demo** is shown and `npm start` creates or resets the sample trader. Any other value does neither. |
+| `DEMO_MODE` | No | When `true`, **Try the demo** is shown, `npm start` resets the sample trader, and `/whatsapp` simulates chat without Meta. |
+| `WHATSAPP_TOKEN` | No | Meta system-user token for the WhatsApp Business account. |
+| `WHATSAPP_PHONE_NUMBER_ID` | No | Phone number ID from the WhatsApp API setup screen. |
+| `WHATSAPP_VERIFY_TOKEN` | No | String you choose. Meta sends it when subscribing the webhook. |
+| `WHATSAPP_APP_SECRET` | No | App secret used to check `X-Hub-Signature-256` on webhook posts. |
 
 ## Quotes
 
@@ -131,7 +167,7 @@ Every variable is listed in `.env.example`.
 5. The customer can accept or decline. Accepting does not take a card payment. The deposit is a second step, and only if Stripe is configured.
 6. Domestic quotes include the cancellation notice placeholder. It is labelled for legal review. It is not the prescribed form under the Consumer Contracts Regulations 2013.
 
-If the customer left a phone number rather than an email, approval still opens the link, but no email is sent. Share the link yourself. That is the gap a later WhatsApp channel would fill: register a sender with `registerDeliverySender("whatsapp", …)` in `src/lib/channels.ts`. Do not send before approval. `deliveryForCustomer` throws if the quote is still a draft.
+If the customer left a phone number rather than an email, approval still opens the link, but no email is sent. Share the link yourself. WhatsApp replies go to the trader, not the customer. Customer reminders are email only for now. `deliveryForCustomer` throws if the quote is still a draft.
 
 ## Price book and Splitstick
 

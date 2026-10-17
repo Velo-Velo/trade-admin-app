@@ -21,21 +21,9 @@ export async function POST(request: Request) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const quoteId = session.metadata?.quoteId;
-    if (quoteId && session.payment_status === "paid") {
+    if (session.payment_status === "paid") {
       try {
-        await prisma.quote.update({
-          where: { id: quoteId },
-          data: { depositPaidAt: new Date(), stripeSessionId: session.id },
-        });
-        await prisma.quoteEvent.create({
-          data: {
-            quoteId,
-            type: "deposit_paid",
-            channel: "web",
-            detail: "Stripe checkout completed.",
-          },
-        });
+        await recordStripePayment(session);
       } catch (error) {
         console.error("[stripe webhook]", error);
         return NextResponse.json({ error: "Could not record payment" }, { status: 500 });
@@ -44,4 +32,43 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+async function recordStripePayment(session: Stripe.Checkout.Session) {
+  const now = new Date();
+  const paymentLinkId = typeof session.payment_link === "string" ? session.payment_link : null;
+  const invoiceId = session.metadata?.invoiceId;
+  if (invoiceId || paymentLinkId) {
+    const invoice = await prisma.invoice.findFirst({
+      where: invoiceId ? { id: invoiceId } : { stripePaymentLinkId: paymentLinkId ?? "" },
+    });
+    if (invoice && !invoice.paidAt && invoice.status !== "DRAFT") {
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: "PAID", paidAt: now, jobCompletedAt: invoice.jobCompletedAt ?? now },
+      });
+      await prisma.invoiceEvent.create({
+        data: {
+          invoiceId: invoice.id,
+          type: "paid",
+          channel: "web",
+          detail: "Stripe payment completed. Payment reminders have stopped.",
+        },
+      });
+      return;
+    }
+  }
+
+  const quoteId = session.metadata?.quoteId;
+  const quote = await prisma.quote.findFirst({
+    where: quoteId ? { id: quoteId } : paymentLinkId ? { stripePaymentLinkId: paymentLinkId } : { id: "" },
+  });
+  if (!quote || quote.depositPaidAt) return;
+  await prisma.quote.update({
+    where: { id: quote.id },
+    data: { depositPaidAt: now, stripeSessionId: session.id },
+  });
+  await prisma.quoteEvent.create({
+    data: { quoteId: quote.id, type: "deposit_paid", channel: "web", detail: "Stripe payment completed." },
+  });
 }

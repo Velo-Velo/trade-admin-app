@@ -17,6 +17,8 @@ import {
 } from "@/lib/format";
 import { requestOrigin } from "@/lib/origin";
 import { deliveryForCustomer } from "@/lib/quotes/approval";
+import { markJobCompleteAction, updateQuoteReview } from "@/server/invoice-actions";
+import { buttonSecondary } from "@/components/styles";
 
 export const metadata = { title: "Quote" };
 
@@ -77,6 +79,33 @@ export default async function QuotePage({
         </div>
         <StatusPill status={quote.status} />
       </div>
+      {quote.status !== "DRAFT" ? (
+        <section className="card grid gap-3">
+          <h2 className="font-serif text-2xl">After the job</h2>
+          <p className="text-sm text-muted">
+            {quote.reviewClickedAt
+              ? "The customer opened the review link. No further review notes will be sent."
+              : quote.jobCompletedAt
+                ? `Job complete. Review notes sent: ${quote.reviewStage} of 3.`
+                : "Mark the job complete when the work is done. Review notes can then start."}
+          </p>
+          <form action={updateQuoteReview} className="grid gap-2">
+            <input type="hidden" name="id" value={quote.id} />
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" name="reviewChaserEnabled" defaultChecked={quote.reviewChaserEnabled} />
+              Ask for a Google review for this job
+            </label>
+            <button className={buttonSecondary} type="submit">Save</button>
+          </form>
+          {!quote.jobCompletedAt ? (
+            <form action={markJobCompleteAction}>
+              <input type="hidden" name="id" value={quote.id} />
+              <input type="hidden" name="kind" value="quote" />
+              <button className={buttonSecondary} type="submit">Mark job complete</button>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
       <p className="whitespace-pre-wrap text-sm leading-6">{quote.jobDescription}</p>
       {quote.enquiry && quote.enquiry.photos.length > 0 ? (

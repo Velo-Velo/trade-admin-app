@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { sendEmail } from "../email";
+import { runFollowUps } from "../followups/run";
 import { isDueForReminder, reminderCopy } from "./reminders";
 
 export async function runReminders(now = new Date()): Promise<{
@@ -7,6 +8,10 @@ export async function runReminders(now = new Date()): Promise<{
   sent: number;
   stubbed: number;
   failed: number;
+  invoicesDue: number;
+  invoicesSent: number;
+  reviewsDue: number;
+  reviewsSent: number;
 }> {
   const items = await prisma.checklistItem.findMany({
     where: { expiresAt: { not: null }, status: { not: "NOT_APPLICABLE" } },
@@ -46,6 +51,9 @@ export async function runReminders(now = new Date()): Promise<{
     }
   }
 
-  console.info(`[reminders] due=${due} sent=${sent} stubbed=${stubbed} failed=${failed}`);
-  return { due, sent, stubbed, failed };
+  const followUps = await runFollowUps(now);
+  console.info(
+    `[reminders] due=${due} sent=${sent} stubbed=${stubbed} failed=${failed} invoicesDue=${followUps.invoicesDue} invoicesSent=${followUps.invoicesSent} reviewsDue=${followUps.reviewsDue} reviewsSent=${followUps.reviewsSent}`,
+  );
+  return { due, sent, stubbed, failed, ...followUps };
 }

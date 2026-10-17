@@ -83,6 +83,15 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         services: DEMO_TRADER.services,
         bio: DEMO_TRADER.bio,
         quoteSeq: 0,
+        invoiceSeq: 0,
+        whatsappE164: "447700900100",
+        bankAccountName: "Sample Harbour Heating",
+        bankSortCode: "00-00-00",
+        bankAccountNumber: "00000000",
+        tradingAddress: "Sample address, United Kingdom",
+        vatRegistered: false,
+        googleReviewUrl: "https://example.com/sample-review",
+        reviewChasersEnabled: true,
       },
     });
 
@@ -233,6 +242,168 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         },
       });
     }
+
+    const unpaidDue = daysAgo(1);
+    const unpaid = await tx.invoice.create({
+      data: {
+        traderId: trader.id,
+        number: "I-0001",
+        status: "SENT",
+        customerName: "Mrs Jones Sample",
+        customerContact: "mrs.jones.sample@example.com",
+        description: "Replaced a kitchen tap. Sample invoice, not a real job.",
+        netPence: 8000,
+        vatPence: 0,
+        totalPence: 8000,
+        vatRate: 0,
+        publicToken: token(),
+        reviewToken: token(),
+        dueAt: unpaidDue,
+        chaserEnabled: true,
+        chaserStage: 0,
+        approvedAt: daysAgo(4),
+        sentAt: daysAgo(4),
+        createdAt: daysAgo(5),
+        businessName: DEMO_TRADER.businessName,
+        phone: DEMO_TRADER.phone,
+        tradingAddress: "Sample address, United Kingdom",
+        bankAccountName: "Sample Harbour Heating",
+        bankSortCode: "00-00-00",
+        bankAccountNumber: "00000000",
+        source: "whatsapp",
+        events: {
+          create: [
+            {
+              type: "draft_created",
+              channel: "whatsapp",
+              detail: "Draft invoice from sample chat. Not sent to a real customer.",
+              createdAt: daysAgo(5),
+            },
+            {
+              type: "approved",
+              channel: "email",
+              detail: "Approved. Email was logged, not sent (sample data).",
+              createdAt: daysAgo(4),
+            },
+          ],
+        },
+      },
+    });
+    const paidAt = daysAgo(3);
+    await tx.invoice.create({
+      data: {
+        traderId: trader.id,
+        number: "I-0002",
+        status: "PAID",
+        customerName: "Alex Sample",
+        customerContact: "alex.sample@example.com",
+        description: "Supply and fit a basin tap. Sample invoice, already paid.",
+        netPence: 9500,
+        vatPence: 0,
+        totalPence: 9500,
+        vatRate: 0,
+        publicToken: token(),
+        reviewToken: token(),
+        dueAt: daysAgo(8),
+        chaserEnabled: true,
+        chaserStage: 1,
+        paidAt,
+        approvedAt: daysAgo(10),
+        sentAt: daysAgo(10),
+        jobCompletedAt: paidAt,
+        reviewStage: 1,
+        lastReviewAt: daysAgo(2),
+        createdAt: daysAgo(12),
+        businessName: DEMO_TRADER.businessName,
+        phone: DEMO_TRADER.phone,
+        tradingAddress: "Sample address, United Kingdom",
+        bankAccountName: "Sample Harbour Heating",
+        bankSortCode: "00-00-00",
+        bankAccountNumber: "00000000",
+        source: "dashboard",
+        events: {
+          create: [
+            {
+              type: "approved",
+              channel: "email",
+              detail: "Approved. Sample data.",
+              createdAt: daysAgo(10),
+            },
+            {
+              type: "chaser_sent",
+              channel: "email",
+              detail: "Reminder 1 logged, not emailed. Sample data.",
+              createdAt: daysAgo(8),
+            },
+            {
+              type: "paid",
+              channel: "web",
+              detail: "Marked paid. Payment reminders have stopped. Sample data.",
+              createdAt: paidAt,
+            },
+            {
+              type: "review_sent",
+              channel: "email",
+              detail: "Review note 1 logged, not emailed. Sample data.",
+              createdAt: daysAgo(2),
+            },
+          ],
+        },
+      },
+    });
+    await tx.invoice.create({
+      data: {
+        traderId: trader.id,
+        number: "I-0003",
+        status: "DRAFT",
+        customerName: "Sam Sample",
+        customerContact: "sam.sample@example.com",
+        description: "Supply and fit a basin tap. Sample draft, not sent.",
+        netPence: 9500,
+        vatPence: 0,
+        totalPence: 9500,
+        vatRate: 0,
+        publicToken: token(),
+        reviewToken: token(),
+        dueAt: daysAhead(14),
+        chaserEnabled: true,
+        createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+        businessName: DEMO_TRADER.businessName,
+        phone: DEMO_TRADER.phone,
+        tradingAddress: "Sample address, United Kingdom",
+        bankAccountName: "Sample Harbour Heating",
+        bankSortCode: "00-00-00",
+        bankAccountNumber: "00000000",
+        source: "whatsapp",
+        events: {
+          create: {
+            type: "draft_created",
+            channel: "whatsapp",
+            detail: "Draft invoice. Not sent to the customer.",
+          },
+        },
+      },
+    });
+    await tx.trader.update({ where: { id: trader.id }, data: { invoiceSeq: 3 } });
+    const phone = "447700900100";
+    await tx.whatsAppMessage.createMany({
+      data: [
+        {
+          traderId: trader.id,
+          phone,
+          direction: "in",
+          body: "Invoice Mrs Jones, replaced tap, £80",
+          createdAt: daysAgo(5),
+        },
+        {
+          traderId: trader.id,
+          phone,
+          direction: "out",
+          body: `Draft invoice ${unpaid.number} for Mrs Jones Sample.\nReplaced a kitchen tap. £80.00.\nNothing has been sent to the customer.\nReply APPROVE ${unpaid.number} to send it.`,
+          createdAt: daysAgo(5),
+        },
+      ],
+    });
   });
 
   console.log(`Job templates ready (${templates}).`);
