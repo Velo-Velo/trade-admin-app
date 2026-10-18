@@ -1,0 +1,244 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Trade {
+  PLUMBING_HEATING
+  ELECTRICAL
+  BUILDING
+  GENERAL
+}
+
+enum LineKind {
+  LABOUR
+  MATERIAL
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+enum ChecklistStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  NOT_APPLICABLE
+}
+
+enum PriceSource {
+  MANUAL
+  SPLITSTICK
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  trader       Trader?
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model MagicLink {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+model Trader {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  businessName String
+  slug         String   @unique
+  trade        Trade
+  area         String
+  postcodes    String
+  phone        String
+  logoText     String
+  brandColour  String
+  services     String
+  bio          String   @default("")
+  quoteSeq     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enquiries    Enquiry[]
+  quotes       Quote[]
+  priceItems   PriceBookItem[]
+  checklist    ChecklistItem[]
+}
+
+model Enquiry {
+  id             String         @id @default(cuid())
+  traderId       String
+  customerName   String
+  contact        String
+  postcode       String
+  jobDescription String
+  source         String         @default("website")
+  createdAt      DateTime       @default(now())
+  trader         Trader         @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  photos         EnquiryPhoto[]
+  quote          Quote?
+
+  @@index([traderId, createdAt])
+}
+
+model EnquiryPhoto {
+  id        String   @id @default(cuid())
+  enquiryId String
+  filename  String
+  mimeType  String
+  bytes     Bytes
+  createdAt DateTime @default(now())
+  enquiry   Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+}
+
+model JobTemplate {
+  id       String            @id @default(cuid())
+  trade    Trade
+  slug     String            @unique
+  name     String
+  summary  String
+  keywords String
+  lines    JobTemplateLine[]
+}
+
+model JobTemplateLine {
+  id                String      @id @default(cuid())
+  templateId        String
+  kind              LineKind
+  description       String
+  quantity          Decimal     @db.Decimal(10, 2)
+  unit              String
+  starterPricePence Int
+  sortOrder         Int
+  template          JobTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model PriceBookItem {
+  id                  String      @id @default(cuid())
+  traderId            String
+  kind                LineKind
+  description         String
+  unit                String
+  sellPricePence      Int
+  lastPaidPence       Int?
+  lastPaidAt          DateTime?
+  source              PriceSource @default(MANUAL)
+  splitstickReceiptId String?
+  merchant            String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  trader              Trader      @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@index([traderId])
+  @@index([splitstickReceiptId])
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  traderId        String
+  enquiryId       String?     @unique
+  number          String
+  status          QuoteStatus @default(DRAFT)
+  customerName    String
+  customerContact String
+  postcode        String
+  jobDescription  String
+  publicToken     String      @unique
+  domestic        Boolean     @default(true)
+  depositPercent  Int         @default(30)
+  coolingOffText  String      @default("")
+  draftNote       String      @default("")
+  approvedAt      DateTime?
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  depositPaidAt   DateTime?
+  stripeSessionId String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  trader          Trader      @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  enquiry         Enquiry?    @relation(fields: [enquiryId], references: [id])
+  lines           QuoteLine[]
+  events          QuoteEvent[]
+
+  @@unique([traderId, number])
+  @@index([traderId, status])
+}
+
+model QuoteLine {
+  id              String   @id @default(cuid())
+  quoteId         String
+  kind            LineKind
+  description     String
+  quantity        Decimal  @db.Decimal(10, 2)
+  unit            String
+  unitPricePence  Int
+  priceBookItemId String?
+  lastPaidPence   Int?
+  sortOrder       Int
+  quote           Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model QuoteEvent {
+  id        String   @id @default(cuid())
+  quoteId   String
+  type      String
+  channel   String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+}
+
+model ChecklistItem {
+  id              String          @id @default(cuid())
+  traderId        String
+  key             String
+  title           String
+  detail          String
+  officialUrl     String
+  verifyUrl       String
+  badgeLabel      String          @default("")
+  publicRegister  Boolean         @default(false)
+  status          ChecklistStatus @default(NOT_STARTED)
+  referenceNumber String          @default("")
+  expiresAt       DateTime?
+  showOnWebsite   Boolean         @default(false)
+  reminderDays    Int             @default(30)
+  lastRemindedAt  DateTime?
+  sortOrder       Int
+  trader          Trader          @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@unique([traderId, key])
+  @@index([expiresAt])
+}
