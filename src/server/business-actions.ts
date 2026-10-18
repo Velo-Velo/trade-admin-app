@@ -5,6 +5,7 @@ import type { Trade } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { slugify } from "@/lib/brand";
+import { siteTheme } from "@/lib/site-theme";
 import { syncChecklist } from "@/lib/checklist/sync";
 import { parseBusiness, parseSlug } from "@/lib/validation";
 import { redirectWith } from "@/lib/redirects";
@@ -94,4 +95,16 @@ export async function updateBusiness(formData: FormData) {
   });
   await syncChecklist(trader.id, trader.trade);
   redirectWith("/business", "notice", "Your page details are saved.");
+}
+
+export async function updateSiteTheme(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user?.trader) redirect("/onboarding");
+  const theme = siteTheme(String(formData.get("siteTheme") || ""));
+  const raw = String(formData.get("siteTheme") || "");
+  if (raw !== theme) {
+    redirectWith("/business", "error", "Choose Yard, Ink or Signal.");
+  }
+  await prisma.trader.update({ where: { id: user.trader.id }, data: { siteTheme: theme } });
+  redirectWith("/business", "notice", "Theme saved. Open your page to see it.");
 }

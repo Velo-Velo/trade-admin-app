@@ -1,0 +1,13 @@
+export const metadata = { title: "Terms" };
+
+export default function TermsPage() {
+  return (
+    <article className="grid gap-4 leading-7">
+      <h1 className="font-serif text-4xl tracking-tight">Terms</h1>
+      <p>Quotestick is a working name for software that helps a UK trade business publish a page, prepare quotes and send invoices. Creating an account does not take a card. The prices on the home page are not charged inside this build.</p>
+      <p>You are responsible for the prices, the bank details, the VAT treatment and any registration numbers you publish. Quotestick does not check registers, and it does not give legal or tax advice. The cancellation notice on a domestic quote is a placeholder marked for legal review.</p>
+      <p>A quote stays a draft until you approve it. Do not share a draft link and expect the customer to open it. They will see a missing page.</p>
+      <p>These terms are a plain description of how the product behaves. They are not a contract drafted by a solicitor.</p>
+    </article>
+  );
+}

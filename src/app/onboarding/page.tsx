@@ -18,8 +18,8 @@ export default async function OnboardingPage({
 
   return (
     <main id="main" className="mx-auto max-w-xl px-5 py-10">
-      <p className="font-serif text-2xl">Quotestick</p>
-      <h1 className="mt-6 font-serif text-4xl">Set up your page</h1>
+      <a href="/" className="font-serif text-2xl tracking-tight no-underline">Quotestick</a>
+      <h1 className="mt-8 font-serif text-4xl tracking-tight">Set up your page</h1>
       <p className="mt-3 text-sm leading-6 text-muted">
         This creates a public page for your business. You can change it later. A text logo is enough.
       </p>

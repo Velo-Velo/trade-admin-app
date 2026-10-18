@@ -8,17 +8,42 @@
   }
 
   body {
-    @apply min-h-screen font-sans;
+    @apply min-h-screen font-sans text-[17px] leading-7;
   }
 
   :focus-visible {
-    outline: 2px solid #1f4a38;
+    outline: 2px solid #9f2d00;
     outline-offset: 2px;
+  }
+
+  summary {
+    list-style: none;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-sand bg-card p-5 shadow-card;
+    @apply rounded-md border border-sand bg-card p-5 shadow-card;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .handset-in {
+    animation: handset-in 0.55s ease both;
+  }
+}
+
+@keyframes handset-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
