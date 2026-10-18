@@ -1,6 +1,19 @@
+import { billingConfigured, featureAllowed, sendBlockReason } from "../billing/plans";
 import { prisma } from "../db";
+import { isSandboxTrader } from "../sandbox";
 import { chaseRelease, isQuoteChaseDue, isServiceChaseDue, quoteChaseCopy, serviceChaseCopy } from "./plan";
 import { deliverCustomerChase } from "./deliver";
+
+function chasersOpen(trader: { slug: string; plan: "FREE" | "TRADE" | "SPLITSTICK"; user: { email: string; emailVerifiedAt: Date | null } }): {
+  sandbox: boolean;
+  hold: boolean;
+} {
+  const sandbox = isSandboxTrader({ slug: trader.slug, email: trader.user.email });
+  if (!featureAllowed({ plan: trader.plan, feature: "chasers", sandbox, billingOn: billingConfigured() })) {
+    return { sandbox, hold: true };
+  }
+  return { sandbox, hold: Boolean(sendBlockReason({ emailVerifiedAt: trader.user.emailVerifiedAt, sandbox })) };
+}
 
 function origin(): string {
   return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -30,7 +43,7 @@ export async function queueCustomerChases(now = new Date()): Promise<{
 
   const quotes = await prisma.quote.findMany({
     where: { status: "SENT", lostAt: null },
-    include: { trader: true, customer: true },
+    include: { trader: { include: { user: true } }, customer: true },
   });
   for (const quote of quotes) {
     const due = isQuoteChaseDue(
@@ -45,6 +58,10 @@ export async function queueCustomerChases(now = new Date()): Promise<{
       now,
     );
     if (!due) continue;
+    const access = chasersOpen(quote.trader);
+    if (!featureAllowed({ plan: quote.trader.plan, feature: "chasers", sandbox: access.sandbox, billingOn: billingConfigured() })) {
+      continue;
+    }
     const existing = await prisma.customerChase.findFirst({
       where: { quoteId: quote.id, stage: quote.chaseStage, status: { in: ["PENDING", "SENT"] } },
     });
@@ -56,7 +73,7 @@ export async function queueCustomerChases(now = new Date()): Promise<{
       customerName: quote.customerName,
       quoteUrl: `${appUrl}/q/${quote.publicToken}`,
     });
-    const release = chaseRelease(quote.trader.autoSendQuoteChasers, false);
+    const release = access.hold ? "queue" : chaseRelease(quote.trader.autoSendQuoteChasers, false);
     if (release === "queue") {
       await prisma.customerChase.create({
         data: {
@@ -80,6 +97,7 @@ export async function queueCustomerChases(now = new Date()): Promise<{
       customerEmail: quote.customer?.email ?? "",
       subject: copy.subject,
       text: copy.text,
+      sandbox: access.sandbox,
     });
     await prisma.customerChase.create({
       data: {
@@ -103,7 +121,7 @@ export async function queueCustomerChases(now = new Date()): Promise<{
 
   const jobs = await prisma.job.findMany({
     where: { recurring: true, serviceDueAt: { not: null }, serviceChaseStage: 0 },
-    include: { trader: true, customer: true },
+    include: { trader: { include: { user: true } }, customer: true },
   });
   for (const job of jobs) {
     if (!job.serviceDueAt) continue;
@@ -118,6 +136,10 @@ export async function queueCustomerChases(now = new Date()): Promise<{
       now,
     );
     if (!due) continue;
+    const access = chasersOpen(job.trader);
+    if (!featureAllowed({ plan: job.trader.plan, feature: "chasers", sandbox: access.sandbox, billingOn: billingConfigured() })) {
+      continue;
+    }
     const existing = await prisma.customerChase.findFirst({
       where: { jobId: job.id, stage: 0, status: { in: ["PENDING", "SENT"] } },
     });
@@ -129,7 +151,7 @@ export async function queueCustomerChases(now = new Date()): Promise<{
       dueAt: job.serviceDueAt,
       bookingUrl: `${appUrl}/t/${job.trader.slug}`,
     });
-    const release = chaseRelease(job.trader.autoSendQuoteChasers, false);
+    const release = access.hold ? "queue" : chaseRelease(job.trader.autoSendQuoteChasers, false);
     if (release === "queue") {
       await prisma.customerChase.create({
         data: {
@@ -153,6 +175,7 @@ export async function queueCustomerChases(now = new Date()): Promise<{
       customerEmail: job.customer.email,
       subject: copy.subject,
       text: copy.text,
+      sandbox: access.sandbox,
     });
     await prisma.customerChase.create({
       data: {

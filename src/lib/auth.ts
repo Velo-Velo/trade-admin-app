@@ -83,20 +83,22 @@ export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export async function createMagicLink(email: string): Promise<string> {
+export type MagicPurposeName = "SIGN_IN" | "VERIFY_EMAIL" | "RESET_PASSWORD";
+
+export async function createMagicLink(email: string, purpose: MagicPurposeName = "SIGN_IN"): Promise<string> {
   const token = newToken();
   const expiresAt = new Date(Date.now() + MAGIC_MINUTES * 60 * 1000);
   await prisma.magicLink.create({
-    data: { email: normaliseEmail(email), tokenHash: hashToken(token), expiresAt },
+    data: { email: normaliseEmail(email), tokenHash: hashToken(token), expiresAt, purpose },
   });
   return token;
 }
 
-export async function consumeMagicLink(token: string): Promise<{ email: string } | null> {
+export async function consumeMagicLink(token: string): Promise<{ email: string; purpose: MagicPurposeName } | null> {
   const link = await prisma.magicLink.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!link || link.usedAt || link.expiresAt.getTime() < Date.now()) return null;
   await prisma.magicLink.update({ where: { id: link.id }, data: { usedAt: new Date() } });
-  return { email: link.email };
+  return { email: link.email, purpose: link.purpose };
 }
 
 export function devLinksVisible(): boolean {

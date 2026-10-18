@@ -6,6 +6,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { createEnquiryAndDraft } from "@/lib/enquiries/create-draft";
 import { requestOrigin } from "@/lib/origin";
 import { readEnquiryPhotos } from "@/lib/uploads";
+import { ENQUIRY_LIMIT, rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request-ip";
+import { enquirySpamReason } from "@/lib/spam";
 import { parseEnquiryFields } from "@/lib/validation";
 import { redirectWith } from "@/lib/redirects";
 
@@ -13,9 +16,16 @@ export async function submitEnquiry(formData: FormData) {
   const slug = String(formData.get("slug") || "");
   const trader = await prisma.trader.findUnique({ where: { slug } });
   if (!trader) redirect("/");
-  if (String(formData.get("company_website") || "").trim()) {
-    redirect(`/t/${slug}/thanks`);
+  const ip = await clientIp();
+  if (!rateLimit(`enquiry:${ip}`, ENQUIRY_LIMIT.limit, ENQUIRY_LIMIT.windowMs).ok) {
+    redirectWith(`/t/${slug}`, "error", "Too many enquiries from this network. Wait an hour and try again.");
   }
+  const spam = enquirySpamReason({
+    honeypot: String(formData.get("company_website") || ""),
+    startedAt: String(formData.get("form_started") || ""),
+    description: String(formData.get("jobDescription") || ""),
+  });
+  if (spam) redirect(`/t/${slug}/thanks`);
   const parsed = parseEnquiryFields({
     customerName: String(formData.get("customerName") || ""),
     contact: String(formData.get("contact") || ""),

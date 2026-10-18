@@ -71,7 +71,7 @@ export function approvedCustomerReply(input: {
 
 export function paymentNote(url: string | null): string {
   if (url) return `Card payment link: ${url}`;
-  return "Card payments are not switched on, so there is no card link. No payment has been taken.";
+  return "Open the quote or invoice to pay. The card button is on that page when card payments are switched on. No payment has been taken yet.";
 }
 
 /** Customer chasers go by email. WhatsApp to the customer can be added on this hook later. */

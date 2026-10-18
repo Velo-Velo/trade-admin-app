@@ -14,6 +14,7 @@ export type DeliveryMessage = {
   to: string;
   subject: string;
   text: string;
+  sandbox?: boolean;
 };
 
 export type DeliverySender = (message: DeliveryMessage) => Promise<EmailResult>;
@@ -45,10 +46,13 @@ export async function deliver(message: DeliveryMessage): Promise<EmailResult> {
 }
 
 registerDeliverySender("email", (message) =>
-  sendEmail({ to: message.to, subject: message.subject, text: message.text }),
+  sendEmail({ to: message.to, subject: message.subject, text: message.text, sandbox: message.sandbox }),
 );
 
 registerDeliverySender("whatsapp", async (message) => {
+  if (message.sandbox) {
+    return { delivered: false, stubbed: true, detail: "Sample account. WhatsApp was not sent." };
+  }
   if (!whatsappConfigured()) {
     throw new Error("WhatsApp is not set up. Add the Meta token and phone number id.");
   }

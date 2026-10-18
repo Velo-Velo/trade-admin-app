@@ -240,6 +240,7 @@ function Enquiry(props: TraderPublicProps) {
         <Flash error={props.error} />
         <form action={submitEnquiry} className="mt-4 grid gap-4">
           <input type="hidden" name="slug" value={props.slug} />
+          <input type="hidden" name="form_started" value={String(Date.now())} />
           <div className="absolute -left-[9999px]" aria-hidden="true">
             <label>
               Company website
