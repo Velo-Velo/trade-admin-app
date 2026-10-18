@@ -11,6 +11,7 @@ import {
 import { redirect } from "next/navigation";
 import { redirectWith } from "@/lib/redirects";
 import { stripeClient } from "@/lib/stripe";
+import { stopQuoteChases } from "@/lib/chasers/queue";
 import { ensureBookedJob } from "@/lib/jobs/ensure";
 
 async function loadVisible(token: string) {
@@ -39,6 +40,7 @@ export async function acceptQuote(formData: FormData) {
   } catch (error) {
     console.error("[job]", error);
   }
+  await stopQuoteChases(quote.id, "Customer accepted. Follow-ups stopped.");
   await prisma.quoteEvent.create({
     data: {
       quoteId: quote.id,
@@ -81,6 +83,7 @@ export async function declineQuote(formData: FormData) {
     where: { id: quote.id },
     data: { status: "DECLINED", declinedAt: new Date() },
   });
+  await stopQuoteChases(quote.id, "Customer declined. Follow-ups stopped.");
   await prisma.quoteEvent.create({
     data: {
       quoteId: quote.id,

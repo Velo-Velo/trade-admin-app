@@ -1,10 +1,11 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth";
+import { addMonths } from "@/lib/chasers/plan";
 import { customerSearchText, normalisePhone } from "@/lib/customers/match";
 import { findOrCreateCustomer } from "@/lib/customers/store";
 import { prisma } from "@/lib/db";
-import { customerEmail } from "@/lib/format";
+import { customerEmail, parseDateInput } from "@/lib/format";
 import { photoBytes, prepareJobPhoto } from "@/lib/images/prepare";
 import { canMoveJob, isJobStatus, JOB_PHOTO_LIMIT } from "@/lib/jobs/board";
 import { redirectWith } from "@/lib/redirects";
@@ -59,15 +60,73 @@ export async function moveJob(formData: FormData) {
     redirectWith(back, "error", "Move the job one column at a time.");
   }
   const now = new Date();
+  const rollService = target === "DONE" && job.recurring;
   await prisma.job.update({
     where: { id: job.id },
     data: {
       status: target,
       startedAt: target === "BOOKED" ? null : target === "IN_PROGRESS" ? (job.startedAt ?? now) : job.startedAt,
       doneAt: target === "DONE" ? (job.doneAt ?? now) : null,
+      ...(rollService
+        ? {
+            serviceDueAt: addMonths(now, job.intervalMonths || 12),
+            serviceChaseStage: 0,
+            lastServiceChasedAt: null,
+          }
+        : {}),
     },
   });
-  redirectWith(back, "notice", "Job updated. Nothing has been sent to the customer.");
+  if (rollService) {
+    await prisma.customerChase.deleteMany({ where: { jobId: job.id } });
+  }
+  redirectWith(back, "notice", rollService ? "Job marked done. The next service date is set. Nothing has been sent to the customer." : "Job updated. Nothing has been sent to the customer.");
+}
+
+export async function updateJobService(formData: FormData) {
+  const trader = await requireTrader();
+  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const id = String(formData.get("jobId") || "");
+  const job = await prisma.job.findFirst({ where: { id, traderId: trader.id } });
+  if (!job) redirectWith("/jobs", "error", "That job could not be found.");
+  const recurring = formData.get("recurring") === "on";
+  const intervalRaw = String(formData.get("intervalMonths") || "").trim();
+  if (!/^\d+$/.test(intervalRaw)) {
+    redirectWith(`/jobs/${job.id}`, "error", "Enter how many months between services, from 1 to 60.");
+  }
+  const intervalMonths = Number(intervalRaw);
+  if (intervalMonths < 1 || intervalMonths > 60) {
+    redirectWith(`/jobs/${job.id}`, "error", "Services repeat every 1 to 60 months.");
+  }
+  const dueRaw = String(formData.get("serviceDueAt") || "").trim();
+  let serviceDueAt = parseDateInput(dueRaw);
+  if (dueRaw && !serviceDueAt) {
+    redirectWith(`/jobs/${job.id}`, "error", "Enter the next service date as a calendar date.");
+  }
+  if (recurring && !serviceDueAt && job.status === "DONE") {
+    serviceDueAt = addMonths(job.doneAt ?? new Date(), intervalMonths);
+  }
+  const previous = job.serviceDueAt ? job.serviceDueAt.toISOString().slice(0, 10) : "";
+  const next = serviceDueAt ? serviceDueAt.toISOString().slice(0, 10) : "";
+  const reset = !recurring || previous !== next;
+  await prisma.job.update({
+    where: { id: job.id },
+    data: {
+      recurring,
+      intervalMonths,
+      serviceDueAt: recurring ? serviceDueAt : job.serviceDueAt,
+      ...(reset ? { serviceChaseStage: 0, lastServiceChasedAt: null } : {}),
+    },
+  });
+  if (reset) {
+    await prisma.customerChase.deleteMany({ where: { jobId: job.id, kind: "SERVICE" } });
+  }
+  redirectWith(
+    `/jobs/${job.id}`,
+    "notice",
+    recurring
+      ? "Service schedule saved. A reminder is queued when it is due, and it is not sent until you approve it."
+      : "This job is no longer a repeating service. Nothing has been sent.",
+  );
 }
 
 export async function linkJobInvoice(formData: FormData) {

@@ -6,6 +6,7 @@ import { firstParam } from "@/lib/format";
 import { requestOrigin } from "@/lib/origin";
 import { TRADES } from "@/lib/trades";
 import { updateBusiness } from "@/server/business-actions";
+import { updateFollowUpSettings } from "@/server/chase-actions";
 import { createWhatsAppLink, unlinkWhatsApp, updatePaymentSettings } from "@/server/invoice-actions";
 
 export const metadata = { title: "Your page" };
@@ -125,6 +126,30 @@ export default async function BusinessPage({
           Send review requests after a job is paid or marked complete
         </label>
         <button className={buttonPrimary} type="submit">Save invoice settings</button>
+      </form>
+      <form action={updateFollowUpSettings} className="grid gap-4 border-t border-sand pt-6">
+        <h2 className="font-serif text-2xl">Quote follow-ups and service reminders</h2>
+        <p className="text-sm leading-6 text-muted">
+          A sent quote with no reply gets a polite follow-up after the number of days you set, and a second note later if you leave that on. A repeating service invites the customer to book from your enquiry page. Both wait in Follow-ups until you tap Send, unless you turn auto-send on.
+        </p>
+        <label className={labelClass}>
+          Days before the first quote follow-up
+          <input className={inputClass} name="quoteChaseDays" type="number" min={1} max={60} required defaultValue={trader.quoteChaseDays} />
+        </label>
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="quoteChaseSecondNudge" defaultChecked={trader.quoteChaseSecondNudge} />
+          Send a second quote reminder later
+        </label>
+        <label className={labelClass}>
+          Weeks before a service is due
+          <input className={inputClass} name="serviceRemindWeeks" type="number" min={1} max={26} required defaultValue={trader.serviceRemindWeeks} />
+        </label>
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="autoSendQuoteChasers" defaultChecked={trader.autoSendQuoteChasers} />
+          Auto-send quote chasers and service reminders
+        </label>
+        <p className="text-sm leading-6 text-muted">Leave this off if you want to read each note before it goes to the customer.</p>
+        <button className={buttonPrimary} type="submit">Save follow-up settings</button>
       </form>
       <section className="grid gap-3 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">WhatsApp</h2>

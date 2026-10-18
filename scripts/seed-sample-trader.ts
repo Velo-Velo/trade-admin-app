@@ -11,6 +11,7 @@ import {
 } from "../src/lib/demo";
 import { customerSearchText, normalisePhone } from "../src/lib/customers/match";
 import { ensureBookedJob } from "../src/lib/jobs/ensure";
+import { quoteChaseCopy, serviceChaseCopy } from "../src/lib/chasers/plan";
 import { coolingOffFor } from "../src/lib/quotes/cooling-off";
 import { buildDraftQuote, describeDraft } from "../src/lib/quotes/draft";
 import { PLUMBING_TEMPLATES } from "../src/lib/templates/plumbing";
@@ -129,7 +130,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
     const people = [
       { name: "Alex Sample", email: "alex.sample@example.com", phone: "", postcode: "SW1A 1AA", address: "2 Sample Close, London" },
       { name: "Priya Sample", email: "", phone: "07700 900201", postcode: "M1 1AE", address: "" },
-      { name: "Jordan Sample", email: "jordan.sample@example.com", phone: "", postcode: "EH1 1AA", address: "" },
+      { name: "Jordan Sample", email: "jordan.sample@example.com", phone: "07700 900401", postcode: "EH1 1AA", address: "4 Sample Crescent, Edinburgh" },
       { name: "Sam Sample", email: "sam.sample@example.com", phone: "", postcode: "CF10 1AA", address: "18 Sample Lane, Cardiff" },
       { name: "Mrs Jones Sample", email: "mrs.jones.sample@example.com", phone: "", postcode: "LS1 1AA", address: "8 Sample Road, Leeds" },
       { name: "Riley Sample", email: "", phone: "07700 900301", postcode: "BS1 4ST", address: "14 Sample Street, Bristol" },
@@ -152,6 +153,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
     }
 
     let acceptedQuoteId = "";
+    let jordanQuote: { id: string; number: string; publicToken: string; customerName: string } | null = null;
     for (const enquiryInput of DEMO_ENQUIRIES) {
       const draft = await buildDraftQuote({
         trade: "PLUMBING_HEATING",
@@ -261,6 +263,14 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         },
       });
       if (status === "ACCEPTED") acceptedQuoteId = quote.id;
+      if (enquiryInput.customerName === "Jordan Sample" && status === "SENT") {
+        jordanQuote = {
+          id: quote.id,
+          number: quote.number,
+          publicToken: quote.publicToken,
+          customerName: quote.customerName,
+        };
+      }
       if (draft.templateSlug === null) {
         throw new Error(`Sample enquiry did not match a template: ${number}`);
       }
@@ -504,6 +514,63 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         },
       },
     });
+    const jordan = customers.get("Jordan Sample");
+    if (!jordan || !jordanQuote) throw new Error("The unanswered sample quote was not created.");
+    const origin = (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+    const quoteCopy = quoteChaseCopy({
+      stage: 0,
+      businessName: DEMO_TRADER.businessName,
+      number: jordanQuote.number,
+      customerName: jordanQuote.customerName,
+      quoteUrl: `${origin}/q/${jordanQuote.publicToken}`,
+    });
+    await tx.customerChase.create({
+      data: {
+        traderId: trader.id,
+        kind: "QUOTE",
+        status: "PENDING",
+        quoteId: jordanQuote.id,
+        stage: 0,
+        subject: quoteCopy.subject,
+        body: quoteCopy.text,
+      },
+    });
+    const serviceDue = daysAhead(18);
+    const boiler = await tx.job.create({
+      data: {
+        traderId: trader.id,
+        customerId: jordan.id,
+        title: "Annual boiler service",
+        address: "4 Sample Crescent, Edinburgh",
+        postcode: "EH1 1AA",
+        status: "DONE",
+        bookedAt: daysAgo(347),
+        startedAt: daysAgo(347),
+        doneAt: daysAgo(347),
+        recurring: true,
+        intervalMonths: 12,
+        serviceDueAt: serviceDue,
+      },
+    });
+    const serviceCopy = serviceChaseCopy({
+      businessName: DEMO_TRADER.businessName,
+      customerName: "Jordan Sample",
+      title: "Annual boiler service",
+      dueAt: serviceDue,
+      bookingUrl: `${origin}/t/${DEMO_SLUG}`,
+    });
+    await tx.customerChase.create({
+      data: {
+        traderId: trader.id,
+        kind: "SERVICE",
+        status: "PENDING",
+        jobId: boiler.id,
+        stage: 0,
+        subject: serviceCopy.subject,
+        body: serviceCopy.text,
+      },
+    });
+
     const phone = "447700900100";
     await tx.whatsAppMessage.createMany({
       data: [

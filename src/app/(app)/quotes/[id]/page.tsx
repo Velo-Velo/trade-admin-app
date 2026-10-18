@@ -18,6 +18,7 @@ import {
 import { requestOrigin } from "@/lib/origin";
 import { deliveryForCustomer } from "@/lib/quotes/approval";
 import { markJobCompleteAction, updateQuoteReview } from "@/server/invoice-actions";
+import { markQuoteLostAction } from "@/server/chase-actions";
 import { buttonSecondary } from "@/components/styles";
 
 export const metadata = { title: "Quote" };
@@ -39,6 +40,7 @@ export default async function QuotePage({
       lines: { orderBy: { sortOrder: "asc" } },
       events: { orderBy: { createdAt: "asc" } },
       job: { select: { id: true } },
+      chases: { where: { status: "PENDING" }, take: 1 },
       enquiry: { include: { photos: { select: { id: true, filename: true } } } },
     },
   });
@@ -166,6 +168,24 @@ export default async function QuotePage({
             {quote.depositPaidAt ? <p className="mt-2 font-semibold text-pine">Deposit marked paid {formatDate(quote.depositPaidAt)}.</p> : null}
           </section>
           {quote.domestic ? <CoolingOff text={quote.coolingOffText} /> : null}
+          {quote.chases.length > 0 ? (
+            <p className="card text-sm leading-6">
+              A follow-up is waiting in <a href="/follow-ups">Follow-ups</a>. It has not been sent.
+            </p>
+          ) : null}
+          {quote.status === "SENT" ? (
+            <form action={markQuoteLostAction} className="card grid gap-3">
+              <h2 className="font-serif text-2xl">No reply</h2>
+              <p className="text-sm leading-6 text-muted">
+                Mark the quote lost if the customer is not going ahead. Follow-ups stop. The customer is not emailed.
+              </p>
+              <input type="hidden" name="quoteId" value={quote.id} />
+              <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Mark lost</button>
+            </form>
+          ) : null}
+          {quote.status === "LOST" ? (
+            <p className="card text-sm leading-6">This quote is marked lost. Follow-ups have stopped.</p>
+          ) : null}
         </div>
       )}
 
