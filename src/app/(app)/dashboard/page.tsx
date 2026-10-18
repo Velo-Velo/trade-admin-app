@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { isServiceDueSoon } from "@/lib/chasers/plan";
 import { formatDate, formatGBP, quoteTotals } from "@/lib/format";
 import { checklistProgress } from "@/lib/checklist/catalog";
 import { StatusPill } from "@/components/status-pill";
@@ -13,7 +14,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
   const traderId = user.trader.id;
-  const [enquiryCount, grouped, drafts, checklist] = await Promise.all([
+  const [enquiryCount, grouped, drafts, checklist, chaseCount, serviceJobs] = await Promise.all([
     prisma.enquiry.count({ where: { traderId } }),
     prisma.quote.groupBy({
       by: ["status"],
@@ -27,7 +28,16 @@ export default async function DashboardPage() {
       include: { lines: true },
     }),
     prisma.checklistItem.findMany({ where: { traderId } }),
+    prisma.customerChase.count({ where: { traderId, status: "PENDING" } }),
+    prisma.job.findMany({
+      where: { traderId, recurring: true, serviceDueAt: { not: null } },
+      orderBy: { serviceDueAt: "asc" },
+      include: { customer: { select: { id: true, name: true } } },
+    }),
   ]);
+  const now = new Date();
+  const remindWeeks = user.trader.serviceRemindWeeks;
+  const dueSoon = serviceJobs.filter((job) => isServiceDueSoon(job, now, remindWeeks));
   const countFor = (status: "DRAFT" | "SENT" | "ACCEPTED") =>
     grouped.find((row) => row.status === status)?._count._all ?? 0;
   const progress = checklistProgress(checklist);
@@ -55,6 +65,36 @@ export default async function DashboardPage() {
             <p className="mt-1 font-serif text-3xl">{value}</p>
           </article>
         ))}
+      </section>
+      <section className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-2xl">Follow-ups</h2>
+          <p className="mt-1 text-sm text-muted">
+            {chaseCount === 0
+              ? "No quote or service reminders are waiting for you to send."
+              : `${chaseCount} waiting for you to send.`}
+          </p>
+        </div>
+        <a href="/follow-ups" className="text-sm font-semibold">Open the queue</a>
+      </section>
+      <section className="grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-serif text-2xl">Due soon</h2>
+          <a href="/jobs" className="text-sm font-semibold">Job board</a>
+        </div>
+        {dueSoon.length === 0 ? (
+          <p className="card text-sm text-muted">No repeating services are due in the next {remindWeeks} weeks.</p>
+        ) : (
+          dueSoon.map((job) => (
+            <a key={job.id} href={`/jobs/${job.id}`} className="card block no-underline">
+              <p className="font-semibold text-ink">{job.title}</p>
+              <p className="mt-1 text-sm text-muted">
+                <span className="text-ink">{job.customer.name}</span>
+                {job.serviceDueAt ? ` · due ${formatDate(job.serviceDueAt)}` : ""}
+              </p>
+            </a>
+          ))
+        )}
       </section>
       <section className="card flex flex-wrap items-center justify-between gap-3">
         <div>

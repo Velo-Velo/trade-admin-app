@@ -143,6 +143,10 @@ export default async function PublicQuotePage({
         {visible.status === "DECLINED" ? (
           <p className="card">You declined this quote. {visible.trader.businessName} has been told.</p>
         ) : null}
+
+        {visible.status === "LOST" ? (
+          <p className="card">This quote is closed. {visible.trader.businessName} is not waiting for a reply.</p>
+        ) : null}
       </main>
     </div>
   );

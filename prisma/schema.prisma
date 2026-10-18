@@ -25,6 +25,18 @@ enum QuoteStatus {
   SENT
   ACCEPTED
   DECLINED
+  LOST
+}
+
+enum ChaseKind {
+  QUOTE
+  SERVICE
+}
+
+enum ChaseStatus {
+  PENDING
+  SENT
+  DISMISSED
 }
 
 enum ChecklistStatus {
@@ -114,6 +126,10 @@ model Trader {
   vatNumber             String   @default("")
   googleReviewUrl       String   @default("")
   reviewChasersEnabled  Boolean  @default(true)
+  quoteChaseDays        Int      @default(3)
+  quoteChaseSecondNudge Boolean  @default(true)
+  autoSendQuoteChasers  Boolean  @default(false)
+  serviceRemindWeeks    Int      @default(4)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -125,6 +141,7 @@ model Trader {
   priceItems            PriceBookItem[]
   checklist             ChecklistItem[]
   whatsappMessages      WhatsAppMessage[]
+  chases                CustomerChase[]
 }
 
 model Enquiry {
@@ -227,6 +244,9 @@ model Quote {
   lastReviewAt        DateTime?
   reviewClickedAt     DateTime?
   jobCompletedAt      DateTime?
+  chaseStage          Int         @default(0)
+  lastChasedAt        DateTime?
+  lostAt              DateTime?
   customerId          String?
   createdAt           DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -236,6 +256,7 @@ model Quote {
   lines           QuoteLine[]
   events          QuoteEvent[]
   job             Job?
+  chases          CustomerChase[]
 
   @@unique([traderId, number])
   @@index([traderId, status])
@@ -406,7 +427,12 @@ model Job {
   status     JobStatus @default(BOOKED)
   bookedAt   DateTime  @default(now())
   startedAt  DateTime?
-  doneAt     DateTime?
+  doneAt             DateTime?
+  recurring          Boolean   @default(false)
+  intervalMonths     Int       @default(12)
+  serviceDueAt       DateTime?
+  serviceChaseStage  Int       @default(0)
+  lastServiceChasedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   trader     Trader    @relation(fields: [traderId], references: [id], onDelete: Cascade)
@@ -414,9 +440,32 @@ model Job {
   quote      Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   photos     JobPhoto[]
+  chases     CustomerChase[]
 
   @@index([traderId, status])
   @@index([customerId])
+  @@index([serviceDueAt])
+}
+
+model CustomerChase {
+  id        String      @id @default(cuid())
+  traderId  String
+  kind      ChaseKind
+  status    ChaseStatus @default(PENDING)
+  quoteId   String?
+  jobId     String?
+  stage     Int
+  subject   String
+  body      String
+  createdAt DateTime    @default(now())
+  sentAt    DateTime?
+  trader    Trader      @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  quote     Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  job       Job?        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, stage])
+  @@unique([jobId, stage])
+  @@index([traderId, status])
 }
 
 model JobPhoto {

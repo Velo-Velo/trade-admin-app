@@ -52,7 +52,7 @@ You need Node.js 22 and PostgreSQL.
 
 ## Try the demo
 
-The sample business is fictional plumbing and heating data: a public page, four enquiries, two drafts waiting for approval, one sent quote, one accepted quote, three invoices (a draft, one sent with payment reminders on, and one already paid), a price book with last-paid figures, and a checklist that is only partly done. Registration numbers, bank details and prices are made up.
+The sample business is fictional plumbing and heating data: a public page, four enquiries, two drafts waiting for approval, one sent quote with a follow-up waiting to be sent, one accepted quote, three invoices (a draft, one sent with payment reminders on, and one already paid), a repeating boiler service that is due soon, a price book with last-paid figures, and a checklist that is only partly done. Registration numbers, bank details and prices are made up.
 
 You only need `DATABASE_URL`. Leave `OPENAI_API_KEY`, the Stripe keys and SMTP empty. Locally you can also leave `SESSION_SECRET` empty; a development fallback signs the cookie. In production that secret is required.
 
@@ -91,7 +91,7 @@ Invoices use pounds. If the trader is not VAT registered, no VAT is added. If th
 
 Approving an invoice or a quote creates a Stripe card link when `STRIPE_SECRET_KEY` is set. The Stripe webhook marks the invoice paid, or the quote deposit paid. With no Stripe keys, the page says card payments are not switched on and no payment is taken. The trader can also mark an invoice paid (for a bank transfer). That stops payment reminders.
 
-Payment reminders are on for each new invoice. The trader can switch them off on that invoice. The sequence is the due date, 7 days later, and 14 days later. Wording gets more direct. They email the customer, and they stop when the invoice is paid. WhatsApp messages to the customer are not sent yet.
+Payment reminders are on for each new invoice. The trader can switch them off on that invoice. The sequence is the due date, 7 days later, and 14 days later. Wording gets more direct. They email the customer, and they stop when the invoice is paid. Invoice payment reminders do not use WhatsApp.
 
 After an invoice is paid, or a job is marked complete, Quotestick can email up to three notes asking for a Google review. The link is the one saved on **Your page**. The notes stop if the customer opens the link, or if the trader switches them off for that job or for the whole business.
 
@@ -105,7 +105,19 @@ The same daily job that checks the compliance checklist also sends these reminde
 
 On a job, add before and after photos from a phone camera or photo library. Pictures the customer attached to the enquiry are copied onto the job when it is booked. Photos are stored in the database, the same way enquiry photos are, and they are resized and compressed on upload so a free Render database can hold them. Job photos are not shown to the customer.
 
-With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`.
+With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon.
+
+## Quote follow-ups and service reminders
+
+A sent quote that has not been accepted or declined gets a polite follow-up after the number of days on **Your page** (3 by default). A second note can follow later (on by default, at 7 days when the first wait is shorter than that). Both land in **Follow-ups**. The trader taps Send. Nothing goes to the customer until then, unless **Auto-send quote chasers and service reminders** is switched on. That switch is off by default.
+
+The note is emailed when the customer has an email address. It is also sent on WhatsApp when Meta is connected and the customer has a mobile number. In demo mode, with no Meta keys, the same note appears in the WhatsApp simulator on the trader’s linked number. Chasing stops when the customer accepts or declines, or when the trader marks the quote lost.
+
+On a job, tick **This job repeats**, set the gap in months (12 by default) and the next due date. Marking a repeating job done sets the next due date from that gap. **Due soon** on the dashboard and the job board lists services inside the lead time (4 weeks by default). The customer page shows the service due date. The reminder invites them to the trader’s enquiry page and says it does not book the visit. It uses the same Follow-ups queue, the same email and WhatsApp paths, and the same auto-send switch.
+
+The daily reminder job creates these notes: `npm run reminders`, or `GET /api/cron/reminders` with `Authorization: Bearer <CRON_SECRET>`.
+
+With `DEMO_MODE=true`, sign in with **Try the demo**. **Follow-ups** already has Jordan Sample’s unanswered quote and a boiler service reminder. **Due soon** lists that boiler service. Open Jordan Sample from Customers to see the service due date.
 
 ### Meta WhatsApp setup
 
@@ -177,7 +189,7 @@ Every variable is listed in `.env.example`.
 5. The customer can accept or decline. Accepting does not take a card payment. The deposit is a second step, and only if Stripe is configured.
 6. Domestic quotes include the cancellation notice placeholder. It is labelled for legal review. It is not the prescribed form under the Consumer Contracts Regulations 2013.
 
-If the customer left a phone number rather than an email, approval still opens the link, but no email is sent. Share the link yourself. WhatsApp replies go to the trader, not the customer. Customer reminders are email only for now. `deliveryForCustomer` throws if the quote is still a draft.
+If the customer left a phone number rather than an email, approval still opens the link, but no email is sent. Share the link yourself. WhatsApp replies go to the trader, not the customer. Quote follow-ups and service reminders can use email and WhatsApp, as described above. Invoice payment reminders stay on email. `deliveryForCustomer` throws if the quote is still a draft. A quote marked lost can still be opened, and it shows as closed.
 
 ## Price book and Splitstick
 

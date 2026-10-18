@@ -83,6 +83,9 @@ export default async function CustomerPage({
                 <span className="text-sm font-semibold text-muted">{jobLabel[job.status]}</span>
               </div>
               {marker ? <p className="mt-1 text-sm text-muted">{marker === "paid" ? "Paid" : "Invoiced"}</p> : null}
+              {job.recurring && job.serviceDueAt ? (
+                <p className="mt-1 text-sm text-muted">Service due {formatDate(job.serviceDueAt)}</p>
+              ) : null}
             </a>
           );
         })}

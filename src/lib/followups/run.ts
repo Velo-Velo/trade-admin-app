@@ -1,3 +1,4 @@
+import { queueCustomerChases } from "../chasers/queue";
 import { prisma } from "../db";
 import { sendEmail } from "../email";
 import { customerEmail } from "../format";
@@ -14,6 +15,10 @@ export async function runFollowUps(now = new Date()): Promise<{
   invoicesSent: number;
   reviewsDue: number;
   reviewsSent: number;
+  quotesQueued: number;
+  quotesSent: number;
+  servicesQueued: number;
+  servicesSent: number;
 }> {
   const appUrl = origin();
   let invoicesDue = 0;
@@ -156,5 +161,6 @@ export async function runFollowUps(now = new Date()): Promise<{
     }
   }
 
-  return { invoicesDue, invoicesSent, reviewsDue, reviewsSent };
+  const chases = await queueCustomerChases(now);
+  return { invoicesDue, invoicesSent, reviewsDue, reviewsSent, ...chases };
 }

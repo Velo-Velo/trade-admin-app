@@ -4,9 +4,9 @@ import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/compon
 import { getCurrentUser } from "@/lib/auth";
 import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
-import { firstParam, formatGBP } from "@/lib/format";
+import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
-import { linkJobInvoice, moveJob, uploadJobPhotos } from "@/server/job-actions";
+import { linkJobInvoice, moveJob, updateJobService, uploadJobPhotos } from "@/server/job-actions";
 
 export const metadata = { title: "Job" };
 
@@ -80,6 +80,31 @@ export default async function JobPage({
           </form>
         ))}
       </section>
+      <form action={updateJobService} className="card grid gap-3">
+        <h2 className="font-serif text-2xl">Repeating service</h2>
+        <p className="text-sm leading-6 text-muted">
+          Use this for an annual boiler service or a gas safety check. A reminder is queued before the due date. It invites the customer to enquire. It does not book the visit, and it is not sent until you approve it.
+        </p>
+        <input type="hidden" name="jobId" value={job.id} />
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="recurring" defaultChecked={job.recurring} />
+          This job repeats
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelClass}>
+            Every (months)
+            <input className={inputClass} name="intervalMonths" type="number" min={1} max={60} defaultValue={job.intervalMonths} required />
+          </label>
+          <label className={labelClass}>
+            Next due
+            <input className={inputClass} name="serviceDueAt" type="date" defaultValue={dateInputValue(job.serviceDueAt)} />
+          </label>
+        </div>
+        {job.recurring && job.serviceDueAt ? (
+          <p className="text-sm text-muted">Due {formatDate(job.serviceDueAt)}.</p>
+        ) : null}
+        <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save service</button>
+      </form>
       <form action={linkJobInvoice} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Invoice</h2>
         <p className="text-sm leading-6 text-muted">

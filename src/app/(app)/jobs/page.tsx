@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { isServiceDueSoon } from "@/lib/chasers/plan";
 import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
-import { firstParam } from "@/lib/format";
+import { firstParam, formatDate } from "@/lib/format";
 import { invoiceMarker } from "@/lib/jobs/board";
 import { ensureBookedJobsForTrader } from "@/lib/jobs/ensure";
 import { createJob, moveJob } from "@/server/job-actions";
@@ -33,6 +34,7 @@ export default async function JobsPage({
   if (!user?.trader) redirect("/onboarding");
   const query = await searchParams;
   await ensureBookedJobsForTrader(prisma, user.trader.id);
+  const now = new Date();
   const jobs = await prisma.job.findMany({
     where: { traderId: user.trader.id },
     orderBy: { updatedAt: "desc" },
@@ -42,6 +44,8 @@ export default async function JobsPage({
       _count: { select: { photos: true } },
     },
   });
+  const remindWeeks = user.trader.serviceRemindWeeks;
+  const dueSoon = jobs.filter((job) => isServiceDueSoon(job, now, remindWeeks));
 
   return (
     <div className="grid gap-5">
@@ -52,6 +56,24 @@ export default async function JobsPage({
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">Due soon</h2>
+        {dueSoon.length === 0 ? (
+          <p className="card text-sm text-muted">No repeating services are due in the next {remindWeeks} weeks.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {dueSoon.map((job) => (
+              <a key={job.id} href={`/jobs/${job.id}`} className="card block no-underline">
+                <p className="font-semibold text-ink">{job.title}</p>
+                <p className="mt-1 text-sm text-muted">
+                  {job.customer.name}
+                  {job.serviceDueAt ? ` · due ${formatDate(job.serviceDueAt)}` : ""}
+                </p>
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
       <form action={createJob} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Book a job</h2>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -100,6 +122,9 @@ export default async function JobsPage({
                         {job.postcode ? ` · ${job.postcode}` : ""}
                         {job.customer.phone ? ` · ${displayPhone(job.customer.phone)}` : ""}
                       </p>
+                      {job.recurring && job.serviceDueAt ? (
+                        <p className="mt-1 text-sm text-muted">Service due {formatDate(job.serviceDueAt)}</p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-semibold">
                       {marker === "paid" ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-950">Paid</span> : null}

@@ -7,6 +7,7 @@ const PROTECTED = [
   "/dashboard",
   "/enquiries",
   "/quotes",
+  "/follow-ups",
   "/invoices",
   "/jobs",
   "/customers",
