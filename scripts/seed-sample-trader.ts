@@ -97,6 +97,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         vatRegistered: false,
         googleReviewUrl: "https://example.com/sample-review",
         reviewChasersEnabled: true,
+        siteTheme: "ink",
       },
     });
 
@@ -446,6 +447,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
     const booked = await ensureBookedJob(tx, acceptedQuoteId);
     if (!booked) throw new Error("The accepted sample quote did not create a booked job.");
     await tx.job.update({ where: { id: booked.id }, data: { invoiceId: draftInvoice.id } });
+    await tx.jobPhoto.updateMany({ where: { jobId: booked.id }, data: { showOnWebsite: true } });
 
     const riley = customers.get("Riley Sample");
     const jones = customers.get("Mrs Jones Sample");
@@ -468,6 +470,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
             filename: "outside-tap-before.jpg",
             mimeType: "image/jpeg",
             bytes: samplePhotos.outside,
+            showOnWebsite: true,
           },
         },
       },
@@ -486,8 +489,8 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         doneAt: daysAgo(4),
         photos: {
           create: [
-            { kind: "BEFORE", filename: "kitchen-tap-before.jpg", mimeType: "image/jpeg", bytes: samplePhotos.beforeTap },
-            { kind: "AFTER", filename: "kitchen-tap-after.jpg", mimeType: "image/jpeg", bytes: samplePhotos.afterTap },
+            { kind: "BEFORE", filename: "kitchen-tap-before.jpg", mimeType: "image/jpeg", bytes: samplePhotos.beforeTap, showOnWebsite: true },
+            { kind: "AFTER", filename: "kitchen-tap-after.jpg", mimeType: "image/jpeg", bytes: samplePhotos.afterTap, showOnWebsite: true },
           ],
         },
       },
@@ -510,6 +513,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
             filename: "basin-tap-after.jpg",
             mimeType: "image/jpeg",
             bytes: samplePhotos.basin,
+            showOnWebsite: true,
           },
         },
       },

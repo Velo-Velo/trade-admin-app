@@ -6,7 +6,7 @@ import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
-import { linkJobInvoice, moveJob, updateJobService, uploadJobPhotos } from "@/server/job-actions";
+import { linkJobInvoice, moveJob, setJobPhotoPublic, updateJobService, uploadJobPhotos } from "@/server/job-actions";
 
 export const metadata = { title: "Job" };
 
@@ -127,14 +127,24 @@ export default async function JobPage({
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Photos</h2>
         <p className="text-sm leading-6 text-muted">
-          Before and after shots stay on this job. Photos the customer sent with the enquiry are copied here when the job is booked. They are reduced in size when you upload them.
+          Before and after shots stay on this job. Photos the customer sent with the enquiry are copied here when the job is booked. They are reduced in size when you upload them. Tick “Show on your page” to put a photo on your public site.
         </p>
         {job.photos.length === 0 ? <p className="card text-sm text-muted">No photos yet.</p> : null}
         <div className="grid grid-cols-2 gap-3">
           {job.photos.map((photo) => (
             <figure key={photo.id} className="overflow-hidden rounded-2xl border border-sand bg-white">
               <img src={`/api/job-photos/${photo.id}`} alt={photo.kind === "BEFORE" ? "Before the job" : "After the job"} className="aspect-[4/3] w-full object-cover" />
-              <figcaption className="px-3 py-2 text-sm font-semibold">{photo.kind === "BEFORE" ? "Before" : "After"}</figcaption>
+              <figcaption className="grid gap-2 px-3 py-2 text-sm">
+                <span className="font-semibold">{photo.kind === "BEFORE" ? "Before" : "After"}</span>
+                <form action={setJobPhotoPublic} className="grid gap-2">
+                  <input type="hidden" name="photoId" value={photo.id} />
+                  <label className="flex items-start gap-2 font-semibold">
+                    <input type="checkbox" name="showOnWebsite" defaultChecked={photo.showOnWebsite} />
+                    Show on your page
+                  </label>
+                  <button className={buttonSecondary} type="submit">Save</button>
+                </form>
+              </figcaption>
             </figure>
           ))}
         </div>

@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { firstParam } from "@/lib/format";
 import { requestOrigin } from "@/lib/origin";
 import { TRADES } from "@/lib/trades";
-import { updateBusiness } from "@/server/business-actions";
+import { SITE_THEME_CHOICES } from "@/lib/site-theme";
+import { updateBusiness, updateSiteTheme } from "@/server/business-actions";
 import { updateFollowUpSettings } from "@/server/chase-actions";
 import { createWhatsAppLink, unlinkWhatsApp, updatePaymentSettings } from "@/server/invoice-actions";
 
@@ -85,6 +86,25 @@ export default async function BusinessPage({
         <button className={buttonPrimary} type="submit">
           Save page
         </button>
+      </form>
+      <form action={updateSiteTheme} className="grid gap-3 border-t border-sand pt-6">
+        <h2 className="font-serif text-2xl">Theme</h2>
+        <p className="text-sm leading-6 text-muted">
+          This changes your public page, and the quote and invoice pages customers open. Your colour stays the accent.
+        </p>
+        <fieldset className="grid gap-3">
+          <legend className="sr-only">Theme</legend>
+          {SITE_THEME_CHOICES.map((choice) => (
+            <label key={choice.id} className="flex gap-3 border border-sand bg-white px-3 py-3">
+              <input type="radio" name="siteTheme" value={choice.id} defaultChecked={trader.siteTheme === choice.id} className="mt-1" />
+              <span>
+                <span className="block font-semibold">{choice.label}</span>
+                <span className="mt-1 block text-sm leading-6 text-muted">{choice.detail}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save theme</button>
       </form>
       <form action={updatePaymentSettings} className="grid gap-4 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">Invoices, bank and reviews</h2>

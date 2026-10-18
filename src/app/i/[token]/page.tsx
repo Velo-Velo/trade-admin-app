@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DemoBanner } from "@/components/demo-banner";
+import { DocumentMast } from "@/components/document-mast";
+import { buttonPrimary } from "@/components/styles";
 import { prisma } from "@/lib/db";
 import { isDemoSlug } from "@/lib/demo";
 import { formatDate, formatGBP } from "@/lib/format";
@@ -15,52 +17,59 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
     await prisma.invoice.findUnique({ where: { publicToken: token }, include: { trader: true } }),
   );
   if (!invoice) notFound();
+  const paid = invoice.status === "PAID";
+
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="min-h-screen">
       {isDemoSlug(invoice.trader.slug) ? <DemoBanner kind="sample" /> : null}
-      <main id="main" className="mx-auto grid max-w-2xl gap-5 px-5 py-8">
-        <header>
-          <p className="text-sm font-semibold uppercase tracking-wide text-pine">{invoice.businessName}</p>
-          <h1 className="mt-2 font-serif text-4xl">Invoice {invoice.number}</h1>
+      <DocumentMast
+        theme={invoice.trader.siteTheme}
+        brand={invoice.trader.brandColour}
+        name={invoice.businessName}
+        kicker={`Invoice ${invoice.number}`}
+      />
+      <main id="main" className="mx-auto grid max-w-3xl gap-8 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section>
+          <h1 className="font-serif text-4xl tracking-tight">{invoice.customerName}</h1>
           <p className="mt-2 text-sm text-muted">
-            {invoice.customerName} · Due {formatDate(invoice.dueAt)}
-            {invoice.status === "PAID" && invoice.paidAt ? ` · Paid ${formatDate(invoice.paidAt)}` : ""}
+            Due {formatDate(invoice.dueAt)}
+            {paid && invoice.paidAt ? ` · Paid ${formatDate(invoice.paidAt)}` : ""}
           </p>
-        </header>
-        <section className="card">
-          <p className="whitespace-pre-wrap leading-7">{invoice.description}</p>
-          <p className="mt-4 flex justify-between text-sm"><span>Net</span><span>{formatGBP(invoice.netPence)}</span></p>
-          <p className="flex justify-between text-sm"><span>{invoice.vatRate > 0 ? `VAT ${invoice.vatRate}%` : "VAT"}</span><span>{formatGBP(invoice.vatPence)}</span></p>
-          <p className="mt-1 flex justify-between font-semibold"><span>Total</span><span>{formatGBP(invoice.totalPence)}</span></p>
-          <p className="mt-3 text-sm text-muted">
+          <p className="mt-5 whitespace-pre-wrap leading-7">{invoice.description}</p>
+          <dl className="mt-6 max-w-xs border-t border-sand text-sm">
+            <div className="flex justify-between py-2"><dt>Net</dt><dd>{formatGBP(invoice.netPence)}</dd></div>
+            <div className="flex justify-between py-2"><dt>{invoice.vatRate > 0 ? `VAT ${invoice.vatRate}%` : "VAT"}</dt><dd>{formatGBP(invoice.vatPence)}</dd></div>
+            <div className="flex justify-between border-t border-sand py-3 font-serif text-3xl tracking-tight"><dt>Total</dt><dd>{formatGBP(invoice.totalPence)}</dd></div>
+          </dl>
+          <p className="mt-3 max-w-md text-sm leading-6 text-muted">
             {invoice.vatRate > 0
               ? "The total includes VAT."
               : "No VAT has been added. This business is not VAT registered on this invoice."}
           </p>
-        </section>
-        <section className="card text-sm leading-6">
-          <h2 className="font-serif text-2xl">How to pay</h2>
-          {invoice.bankAccountName ? (
-            <p className="mt-2">
-              {invoice.bankAccountName}<br />
-              Sort code {invoice.bankSortCode}<br />
-              Account {invoice.bankAccountNumber}<br />
-              Reference {invoice.number}
-            </p>
-          ) : (
-            <p className="mt-2">Bank details were not on this invoice. Contact {invoice.businessName}.</p>
-          )}
-          {invoice.stripePaymentUrl ? (
-            <p className="mt-3">
-              <a href={invoice.stripePaymentUrl}>Pay {formatGBP(invoice.totalPence)} by card</a>
-            </p>
-          ) : (
-            <p className="mt-3">{paymentNote(null)}</p>
-          )}
-          <p className="mt-3">
+          <p className="mt-4 text-sm">
             <a href={`/i/${token}/pdf`}>Download PDF</a>
           </p>
         </section>
+        <aside className="h-fit border border-sand bg-white p-5">
+          <h2 className="font-serif text-2xl tracking-tight">{paid ? "Paid" : "How to pay"}</h2>
+          {invoice.bankAccountName ? (
+            <dl className="mt-4 text-sm leading-6">
+              <div className="flex justify-between gap-3"><dt className="text-muted">Name</dt><dd>{invoice.bankAccountName}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted">Sort code</dt><dd>{invoice.bankSortCode}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted">Account</dt><dd>{invoice.bankAccountNumber}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted">Reference</dt><dd>{invoice.number}</dd></div>
+            </dl>
+          ) : (
+            <p className="mt-3 text-sm leading-6">Bank details were not on this invoice. Contact {invoice.businessName}.</p>
+          )}
+          {invoice.stripePaymentUrl && !paid ? (
+            <a className={`${buttonPrimary} mt-4 w-full`} href={invoice.stripePaymentUrl}>
+              Pay {formatGBP(invoice.totalPence)} by card
+            </a>
+          ) : (
+            <p className="mt-4 text-sm leading-6">{paid ? "This invoice is marked paid." : paymentNote(null)}</p>
+          )}
+        </aside>
       </main>
     </div>
   );

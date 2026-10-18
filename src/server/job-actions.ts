@@ -182,7 +182,23 @@ export async function uploadJobPhotos(formData: FormData) {
       },
     });
   }
-  redirectWith(`/jobs/${job.id}`, "notice", "Photos saved on this job. They are not sent to the customer.");
+  redirectWith(`/jobs/${job.id}`, "notice", "Photos saved on this job. They are not sent to the customer, and they stay off your public page until you show them.");
+}
+
+export async function setJobPhotoPublic(formData: FormData) {
+  const trader = await requireTrader();
+  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const id = String(formData.get("photoId") || "");
+  const photo = await prisma.jobPhoto.findFirst({
+    where: { id, job: { traderId: trader.id } },
+    select: { id: true, jobId: true },
+  });
+  if (!photo) redirectWith("/jobs", "error", "That photo could not be found.");
+  await prisma.jobPhoto.update({
+    where: { id: photo.id },
+    data: { showOnWebsite: formData.get("showOnWebsite") === "on" },
+  });
+  redirectWith(`/jobs/${photo.jobId}`, "notice", "Public page photos updated.");
 }
 
 export async function updateCustomerDetails(formData: FormData) {

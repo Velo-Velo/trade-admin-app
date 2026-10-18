@@ -5,27 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        paper: "#f3efe6",
-        ink: "#1c1915",
+        paper: "#f4f5f2",
+        ink: "#16181d",
         pine: {
-          DEFAULT: "#1f4a38",
-          dark: "#143428",
+          DEFAULT: "#9f2d00",
+          dark: "#7c2300",
         },
-        clay: "#b85a38",
-        sand: "#e4d9c8",
-        card: "#fffdf9",
-        muted: "#5f584e",
+        clay: "#7c2300",
+        sand: "#d7dbd4",
+        card: "#ffffff",
+        muted: "#3e453e",
       },
       fontFamily: {
-        serif: ["Georgia", "Iowan Old Style", "Palatino Linotype", "Palatino", "serif"],
-        sans: [
-          "ui-sans-serif",
-          "system-ui",
-          "Segoe UI",
-          "Helvetica Neue",
-          "Arial",
-          "sans-serif",
-        ],
+        serif: ["var(--font-display)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       boxShadow: {
         card: "0 1px 2px rgba(28, 25, 21, 0.05), 0 10px 28px rgba(28, 25, 21, 0.05)",

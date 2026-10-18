@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { demoModeEnabled } from "@/lib/demo";
 import { firstParam } from "@/lib/format";
+import { ChatLine } from "@/components/chat-line";
 import { simulateVoiceNote, simulateWhatsApp } from "@/server/whatsapp-sim-actions";
 
 export const metadata = { title: "WhatsApp simulator" };
@@ -43,14 +44,7 @@ export default async function WhatsAppSimulatorPage({
       )}
       <div className="grid gap-2">
         {messages.map((message) => (
-          <p
-            key={message.id}
-            className={`max-w-[90%] whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-sm leading-6 ${
-              message.direction === "in" ? "ml-auto bg-pine text-white" : "bg-white"
-            }`}
-          >
-            {message.body}
-          </p>
+          <ChatLine key={message.id} direction={message.direction === "in" ? "in" : "out"} body={message.body} />
         ))}
       </div>
       <form action={simulateWhatsApp} className="grid gap-3">
