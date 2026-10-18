@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
-import { buttonPrimary, inputClass, labelClass } from "@/components/styles";
+import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
 import { firstParam } from "@/lib/format";
 import { requestOrigin } from "@/lib/origin";
 import { TRADES } from "@/lib/trades";
 import { updateBusiness } from "@/server/business-actions";
+import { createWhatsAppLink, unlinkWhatsApp, updatePaymentSettings } from "@/server/invoice-actions";
 
 export const metadata = { title: "Your page" };
 
@@ -84,6 +85,63 @@ export default async function BusinessPage({
           Save page
         </button>
       </form>
+      <form action={updatePaymentSettings} className="grid gap-4 border-t border-sand pt-6">
+        <h2 className="font-serif text-2xl">Invoices, bank and reviews</h2>
+        <p className="text-sm leading-6 text-muted">
+          Bank details are printed on invoices. VAT is added only when you say you are VAT registered. The amount in a quick invoice is the customer total, unless the message says plus VAT.
+        </p>
+        <label className={labelClass}>
+          Trading address
+          <textarea className={inputClass} name="tradingAddress" rows={2} defaultValue={trader.tradingAddress} />
+        </label>
+        <label className={labelClass}>
+          Name on the account
+          <input className={inputClass} name="bankAccountName" defaultValue={trader.bankAccountName} />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelClass}>
+            Sort code
+            <input className={inputClass} name="bankSortCode" defaultValue={trader.bankSortCode} placeholder="00-00-00" />
+          </label>
+          <label className={labelClass}>
+            Account number
+            <input className={inputClass} name="bankAccountNumber" defaultValue={trader.bankAccountNumber} />
+          </label>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="vatRegistered" defaultChecked={trader.vatRegistered} />
+          VAT registered
+        </label>
+        <label className={labelClass}>
+          VAT number
+          <input className={inputClass} name="vatNumber" defaultValue={trader.vatNumber} placeholder="GB123456789" />
+        </label>
+        <label className={labelClass}>
+          Google review link
+          <input className={inputClass} name="googleReviewUrl" defaultValue={trader.googleReviewUrl} placeholder="https://" />
+        </label>
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="reviewChasersEnabled" defaultChecked={trader.reviewChasersEnabled} />
+          Send review requests after a job is paid or marked complete
+        </label>
+        <button className={buttonPrimary} type="submit">Save invoice settings</button>
+      </form>
+      <section className="grid gap-3 border-t border-sand pt-6">
+        <h2 className="font-serif text-2xl">WhatsApp</h2>
+        <p className="text-sm leading-6 text-muted">
+          {trader.whatsappE164
+            ? `Linked number +${trader.whatsappE164}. Messages to the Quotestick WhatsApp number from this phone create drafts.`
+            : "Create a code, then send LINK and the code from your own WhatsApp to the Quotestick number."}
+        </p>
+        <form action={createWhatsAppLink}>
+          <button className={buttonSecondary} type="submit">Create a link code</button>
+        </form>
+        {trader.whatsappE164 ? (
+          <form action={unlinkWhatsApp}>
+            <button className={buttonSecondary} type="submit">Unlink number</button>
+          </form>
+        ) : null}
+      </section>
     </div>
   );
 }

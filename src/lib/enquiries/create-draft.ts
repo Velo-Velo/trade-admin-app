@@ -13,7 +13,7 @@ export async function createEnquiryAndDraft(input: {
   contact: string;
   postcode: string;
   jobDescription: string;
-  source: "website" | "manual";
+  source: "website" | "manual" | "whatsapp";
   photos: Array<{ filename: string; mimeType: string; bytes: Uint8Array<ArrayBuffer> }>;
   origin: string;
 }): Promise<{ enquiryId: string; quoteId: string; number: string }> {
@@ -86,6 +86,7 @@ export async function createEnquiryAndDraft(input: {
         postcode: input.postcode,
         jobDescription: input.jobDescription,
         publicToken: newToken(),
+        reviewToken: newToken(),
         domestic: true,
         depositPercent: 30,
         coolingOffText: coolingOffFor(true),
@@ -105,7 +106,7 @@ export async function createEnquiryAndDraft(input: {
         events: {
           create: {
             type: "draft_created",
-            channel: input.source === "website" ? "web" : "manual",
+            channel: input.source === "website" ? "web" : input.source,
             detail: "Draft created. Not sent to the customer.",
           },
         },

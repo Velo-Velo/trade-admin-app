@@ -60,10 +60,10 @@ describe("price book and delivery hooks", () => {
     expect(slugify("Sample Harbour Heating")).toBe("sample-harbour-heating");
   });
 
-  it("sends email and refuses WhatsApp until a sender is registered", async () => {
-    expect(availableChannels()).toEqual(["email"]);
+  it("registers WhatsApp but refuses to send without Meta credentials", async () => {
+    expect(availableChannels()).toEqual(["email", "whatsapp"]);
     await expect(
-      deliver({ channel: "whatsapp", to: "+447000000000", subject: "Quote", text: "link" }),
+      deliver({ channel: "whatsapp", to: "447000000000", subject: "Quote", text: "link" }),
     ).rejects.toThrow(/WhatsApp is not set up/);
   });
 });

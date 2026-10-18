@@ -121,6 +121,10 @@ export default async function PublicQuotePage({
               <p>Deposit paid on {formatDate(visible.depositPaidAt)}. Thank you.</p>
             ) : totals.deposit <= 0 ? (
               <p>No deposit is requested on this quote. {visible.trader.businessName} will be in touch.</p>
+            ) : visible.stripePaymentUrl ? (
+              <p>
+                <a href={visible.stripePaymentUrl}>Pay {formatGBP(totals.deposit)} deposit by card</a>
+              </p>
             ) : stripeConfigured() ? (
               <form action={startDeposit}>
                 <input type="hidden" name="token" value={token} />

@@ -1,11 +1,11 @@
 import { sendEmail, type EmailResult } from "@/lib/email";
+import { sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp/client";
 
 /**
- * Quote delivery channels.
- * Email is registered below. WhatsApp is intentionally not registered.
- * A later version can call registerDeliverySender("whatsapp", sender)
- * without changing the approval gate: the trader still approves first,
- * and the sender only receives the public link after status is SENT.
+ * Quote and invoice delivery.
+ * Email is always registered. WhatsApp sends only when the Meta token and
+ * phone number id are set. Customer messages are still refused until the
+ * trader has approved: callers must use the approval gate before deliver().
  */
 export type DeliveryChannel = "email" | "whatsapp";
 
@@ -47,3 +47,11 @@ export async function deliver(message: DeliveryMessage): Promise<EmailResult> {
 registerDeliverySender("email", (message) =>
   sendEmail({ to: message.to, subject: message.subject, text: message.text }),
 );
+
+registerDeliverySender("whatsapp", async (message) => {
+  if (!whatsappConfigured()) {
+    throw new Error("WhatsApp is not set up. Add the Meta token and phone number id.");
+  }
+  await sendWhatsAppText(message.to, `${message.subject}\n\n${message.text}`);
+  return { delivered: true, stubbed: false, detail: "Sent on WhatsApp." };
+});

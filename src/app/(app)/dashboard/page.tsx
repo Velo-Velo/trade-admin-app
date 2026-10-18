@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatDate, formatGBP, quoteTotals } from "@/lib/format";
 import { checklistProgress } from "@/lib/checklist/catalog";
 import { StatusPill } from "@/components/status-pill";
+import { buttonPrimary, inputClass, labelClass } from "@/components/styles";
+import { createInvoiceFromText } from "@/server/invoice-actions";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Dashboard" };
@@ -54,6 +56,15 @@ export default async function DashboardPage() {
           </article>
         ))}
       </section>
+      <form action={createInvoiceFromText} className="card grid gap-3">
+        <h2 className="font-serif text-2xl">Quick invoice</h2>
+        <p className="text-sm text-muted">One line creates a draft. The customer is not sent anything until you approve it.</p>
+        <label className={labelClass}>
+          Invoice
+          <textarea className={inputClass} name="text" rows={2} required placeholder="Invoice Mrs Jones, replaced tap, £80" />
+        </label>
+        <button className={buttonPrimary} type="submit">Create draft invoice</button>
+      </form>
       <section className="card">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-serif text-2xl">Checklist</h2>
