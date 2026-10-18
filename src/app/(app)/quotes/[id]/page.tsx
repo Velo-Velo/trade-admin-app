@@ -38,6 +38,7 @@ export default async function QuotePage({
     include: {
       lines: { orderBy: { sortOrder: "asc" } },
       events: { orderBy: { createdAt: "asc" } },
+      job: { select: { id: true } },
       enquiry: { include: { photos: { select: { id: true, filename: true } } } },
     },
   });
@@ -76,6 +77,7 @@ export default async function QuotePage({
           <p className="mt-1 text-sm text-muted">
             {contact ? <a href={contact}>{quote.customerContact}</a> : quote.customerContact} · {quote.postcode}
           </p>
+          {quote.job ? <p className="mt-2 text-sm"><a href={`/jobs/${quote.job.id}`}>Open the job</a></p> : null}
         </div>
         <StatusPill status={quote.status} />
       </div>

@@ -1,0 +1,134 @@
+import { notFound, redirect } from "next/navigation";
+import { Flash } from "@/components/flash";
+import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
+import { getCurrentUser } from "@/lib/auth";
+import { displayPhone } from "@/lib/customers/match";
+import { prisma } from "@/lib/db";
+import { firstParam, formatGBP } from "@/lib/format";
+import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
+import { linkJobInvoice, moveJob, uploadJobPhotos } from "@/server/job-actions";
+
+export const metadata = { title: "Job" };
+
+const titles: Record<(typeof JOB_STATUSES)[number], string> = {
+  BOOKED: "Booked",
+  IN_PROGRESS: "In progress",
+  DONE: "Done",
+};
+
+export default async function JobPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
+}) {
+  const user = await getCurrentUser();
+  if (!user?.trader) redirect("/onboarding");
+  const { id } = await params;
+  const query = await searchParams;
+  const job = await prisma.job.findFirst({
+    where: { id, traderId: user.trader.id },
+    include: {
+      customer: true,
+      quote: { select: { id: true, number: true, status: true } },
+      invoice: { select: { id: true, number: true, status: true, totalPence: true } },
+      photos: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!job) notFound();
+  const invoices = await prisma.invoice.findMany({
+    where: { traderId: user.trader.id, customerId: job.customerId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, number: true, status: true, totalPence: true },
+  });
+  const marker = invoiceMarker(job.invoice?.status);
+  const moves = JOB_STATUSES.filter((status) => canMoveJob(job.status, status));
+
+  return (
+    <div className="mx-auto grid max-w-2xl gap-5">
+      <div>
+        <p className="text-sm font-semibold text-muted">{titles[job.status]}</p>
+        <h1 className="font-serif text-4xl">{job.title}</h1>
+        <p className="mt-2 text-sm text-muted">
+          <a href={`/customers/${job.customer.id}`}>{job.customer.name}</a>
+          {job.customer.phone ? ` · ${displayPhone(job.customer.phone)}` : ""}
+          {job.customer.email ? ` · ${job.customer.email}` : ""}
+        </p>
+        {job.address || job.postcode ? (
+          <p className="mt-1 text-sm text-muted">{[job.address, job.postcode].filter(Boolean).join(", ")}</p>
+        ) : null}
+      </div>
+      <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      <div className="flex flex-wrap gap-2 text-sm font-semibold">
+        {marker === "paid" ? <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-950">Paid</span> : null}
+        {marker === "invoiced" ? <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-950">Invoiced</span> : null}
+        {job.invoice?.status === "DRAFT" ? (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-950">Draft invoice, not sent</span>
+        ) : null}
+        {job.quote ? <a href={`/quotes/${job.quote.id}`}>Quote {job.quote.number}</a> : null}
+        {job.invoice ? <a href={`/invoices/${job.invoice.id}`}>Invoice {job.invoice.number}</a> : null}
+      </div>
+      <section className="grid gap-2 sm:grid-cols-2">
+        {moves.map((status) => (
+          <form key={status} action={moveJob}>
+            <input type="hidden" name="jobId" value={job.id} />
+            <input type="hidden" name="status" value={status} />
+            <button className={`${status === "DONE" || status === "IN_PROGRESS" ? buttonPrimary : buttonSecondary} w-full`} type="submit">
+              Mark {titles[status].toLowerCase()}
+            </button>
+          </form>
+        ))}
+      </section>
+      <form action={linkJobInvoice} className="card grid gap-3">
+        <h2 className="font-serif text-2xl">Invoice</h2>
+        <p className="text-sm leading-6 text-muted">
+          Paid and Invoiced come from the linked invoice. A draft stays private until you approve it.
+        </p>
+        <input type="hidden" name="jobId" value={job.id} />
+        <label className={labelClass}>
+          Linked invoice
+          <select className={inputClass} name="invoiceId" defaultValue={job.invoiceId ?? ""}>
+            <option value="">None</option>
+            {invoices.map((invoice) => (
+              <option key={invoice.id} value={invoice.id}>
+                {invoice.number} · {invoice.status.toLowerCase()} · {formatGBP(invoice.totalPence)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save link</button>
+      </form>
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">Photos</h2>
+        <p className="text-sm leading-6 text-muted">
+          Before and after shots stay on this job. Photos the customer sent with the enquiry are copied here when the job is booked. They are reduced in size when you upload them.
+        </p>
+        {job.photos.length === 0 ? <p className="card text-sm text-muted">No photos yet.</p> : null}
+        <div className="grid grid-cols-2 gap-3">
+          {job.photos.map((photo) => (
+            <figure key={photo.id} className="overflow-hidden rounded-2xl border border-sand bg-white">
+              <img src={`/api/job-photos/${photo.id}`} alt={photo.kind === "BEFORE" ? "Before the job" : "After the job"} className="aspect-[4/3] w-full object-cover" />
+              <figcaption className="px-3 py-2 text-sm font-semibold">{photo.kind === "BEFORE" ? "Before" : "After"}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <form action={uploadJobPhotos} className="card grid gap-3">
+          <input type="hidden" name="jobId" value={job.id} />
+          <label className={labelClass}>
+            These photos are
+            <select className={inputClass} name="kind" defaultValue="BEFORE">
+              <option value="BEFORE">Before</option>
+              <option value="AFTER">After</option>
+            </select>
+          </label>
+          <label className={labelClass}>
+            From your camera or photo library
+            <input className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-sand file:px-3 file:py-2 file:text-sm file:font-semibold`} type="file" name="photos" accept="image/*" multiple required />
+          </label>
+          <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">Add photos</button>
+        </form>
+      </section>
+    </div>
+  );
+}

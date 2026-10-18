@@ -45,6 +45,17 @@ enum InvoiceStatus {
   PAID
 }
 
+enum JobStatus {
+  BOOKED
+  IN_PROGRESS
+  DONE
+}
+
+enum JobPhotoKind {
+  BEFORE
+  AFTER
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -109,6 +120,8 @@ model Trader {
   enquiries             Enquiry[]
   quotes                Quote[]
   invoices              Invoice[]
+  customers             Customer[]
+  jobs                  Job[]
   priceItems            PriceBookItem[]
   checklist             ChecklistItem[]
   whatsappMessages      WhatsAppMessage[]
@@ -122,12 +135,15 @@ model Enquiry {
   postcode       String
   jobDescription String
   source         String         @default("website")
+  customerId     String?
   createdAt      DateTime       @default(now())
   trader         Trader         @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  customer       Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   photos         EnquiryPhoto[]
   quote          Quote?
 
   @@index([traderId, createdAt])
+  @@index([customerId])
 }
 
 model EnquiryPhoto {
@@ -211,16 +227,20 @@ model Quote {
   lastReviewAt        DateTime?
   reviewClickedAt     DateTime?
   jobCompletedAt      DateTime?
+  customerId          String?
   createdAt           DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   trader          Trader      @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  customer        Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   enquiry         Enquiry?    @relation(fields: [enquiryId], references: [id])
   lines           QuoteLine[]
   events          QuoteEvent[]
+  job             Job?
 
   @@unique([traderId, number])
   @@index([traderId, status])
   @@index([stripePaymentLinkId])
+  @@index([customerId])
 }
 
 model QuoteLine {
@@ -308,15 +328,19 @@ model Invoice {
   reviewClickedAt     DateTime?
   jobCompletedAt      DateTime?
   source              String        @default("dashboard")
+  customerId          String?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   trader              Trader        @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  customer            Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   events              InvoiceEvent[]
+  job                 Job?
 
   @@unique([traderId, number])
   @@index([traderId, status])
   @@index([dueAt])
   @@index([stripePaymentLinkId])
+  @@index([customerId])
 }
 
 model InvoiceEvent {
@@ -347,4 +371,63 @@ model WhatsAppMessage {
 model WhatsAppReceipt {
   id        String   @id
   createdAt DateTime @default(now())
+}
+
+model Customer {
+  id         String    @id @default(cuid())
+  traderId   String
+  name       String
+  phone      String    @default("")
+  email      String    @default("")
+  postcode   String    @default("")
+  address    String    @default("")
+  searchText String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  trader     Trader    @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  enquiries  Enquiry[]
+  quotes     Quote[]
+  invoices   Invoice[]
+  jobs       Job[]
+
+  @@index([traderId])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+model Job {
+  id         String    @id @default(cuid())
+  traderId   String
+  customerId String
+  quoteId    String?   @unique
+  invoiceId  String?   @unique
+  title      String
+  address    String    @default("")
+  postcode   String    @default("")
+  status     JobStatus @default(BOOKED)
+  bookedAt   DateTime  @default(now())
+  startedAt  DateTime?
+  doneAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  trader     Trader    @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quote      Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  photos     JobPhoto[]
+
+  @@index([traderId, status])
+  @@index([customerId])
+}
+
+model JobPhoto {
+  id        String       @id @default(cuid())
+  jobId     String
+  kind      JobPhotoKind
+  filename  String
+  mimeType  String
+  bytes     Bytes
+  createdAt DateTime     @default(now())
+  job       Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
 }

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { newToken } from "@/lib/auth";
+import { findOrCreateCustomer } from "@/lib/customers/store";
+import { soleUninvoicedJob } from "@/lib/jobs/board";
 import { customerEmail } from "@/lib/format";
 import { deliver } from "@/lib/channels";
 import { createGbpPaymentLink } from "@/lib/payments/link";
@@ -24,9 +26,20 @@ export async function createDraftInvoice(input: {
       data: { invoiceSeq: { increment: 1 } },
     });
     const number = `I-${String(updated.invoiceSeq).padStart(4, "0")}`;
-    return tx.invoice.create({
+    const customer = await findOrCreateCustomer(tx, {
+      traderId: trader.id,
+      name: input.parsed.customerName,
+      contact: input.parsed.contact,
+    });
+    const openJobs = await tx.job.findMany({
+      where: { traderId: trader.id, customerId: customer.id },
+      select: { id: true, invoiceId: true },
+    });
+    const attach = soleUninvoicedJob(openJobs);
+    const invoice = await tx.invoice.create({
       data: {
         traderId: trader.id,
+        customerId: customer.id,
         number,
         status: "DRAFT",
         customerName: input.parsed.customerName,
@@ -58,6 +71,10 @@ export async function createDraftInvoice(input: {
         },
       },
     });
+    if (attach) {
+      await tx.job.update({ where: { id: attach.id }, data: { invoiceId: invoice.id } });
+    }
+    return invoice;
   });
 }
 

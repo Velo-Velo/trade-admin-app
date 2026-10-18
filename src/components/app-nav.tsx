@@ -9,6 +9,8 @@ export function AppNav({ slug, showSimulator }: { slug: string; showSimulator: b
     ["/enquiries", "Enquiries"],
     ["/quotes", "Quotes"],
     ["/invoices", "Invoices"],
+    ["/jobs", "Jobs"],
+    ["/customers", "Customers"],
     ["/price-book", "Price book"],
     ["/checklist", "Checklist"],
     ["/business", "Your page"],

@@ -97,6 +97,16 @@ After an invoice is paid, or a job is marked complete, Quotestick can email up t
 
 The same daily job that checks the compliance checklist also sends these reminders: `npm run reminders`, or `GET /api/cron/reminders` with `Authorization: Bearer <CRON_SECRET>`.
 
+## Jobs, customers and photos
+
+**Jobs** is a three-column board: Booked, In progress and Done. Tap a button to move a job. There is no drag. When a customer accepts a quote, Quotestick adds a Booked job. If that job is linked to an invoice, the card shows Invoiced once the invoice is sent, or Paid once it is paid. A draft invoice stays marked as not sent.
+
+**Customers** has a search box. Type part of a name, phone, email, postcode or address. Open a customer to see their jobs, quotes and invoices.
+
+On a job, add before and after photos from a phone camera or photo library. Pictures the customer attached to the enquiry are copied onto the job when it is booked. Photos are stored in the database, the same way enquiry photos are, and they are resized and compressed on upload so a free Render database can hold them. Job photos are not shown to the customer.
+
+With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`.
+
 ### Meta WhatsApp setup
 
 1. Go to [developers.facebook.com](https://developers.facebook.com) and create an app. Add the WhatsApp product.

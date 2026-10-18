@@ -4,6 +4,7 @@ import { coolingOffFor } from "@/lib/quotes/cooling-off";
 import { buildDraftQuote, describeDraft, type TemplateInput } from "@/lib/quotes/draft";
 import { completerFromEnv } from "@/lib/quotes/llm";
 import { newToken } from "@/lib/auth";
+import { findOrCreateCustomer } from "@/lib/customers/store";
 import { sendEmail } from "@/lib/email";
 import { customerEmail } from "@/lib/format";
 
@@ -58,9 +59,16 @@ export async function createEnquiryAndDraft(input: {
       data: { quoteSeq: { increment: 1 } },
     });
     const number = `Q-${String(updated.quoteSeq).padStart(4, "0")}`;
+    const customer = await findOrCreateCustomer(tx, {
+      traderId: trader.id,
+      name: input.customerName,
+      contact: input.contact,
+      postcode: input.postcode,
+    });
     const enquiry = await tx.enquiry.create({
       data: {
         traderId: trader.id,
+        customerId: customer.id,
         customerName: input.customerName,
         contact: input.contact,
         postcode: input.postcode,
@@ -78,6 +86,7 @@ export async function createEnquiryAndDraft(input: {
     const quote = await tx.quote.create({
       data: {
         traderId: trader.id,
+        customerId: customer.id,
         enquiryId: enquiry.id,
         number,
         status: "DRAFT",
