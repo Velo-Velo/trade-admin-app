@@ -49,6 +49,14 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      - key: STRIPE_PRICE_TRADE
+        sync: false
+      - key: STRIPE_PRICE_SPLITSTICK
+        sync: false
+      - key: STRIPE_PLATFORM_FEE_BPS
+        value: "0"
+      - key: ERROR_WEBHOOK_URL
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

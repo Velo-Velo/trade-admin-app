@@ -6,6 +6,7 @@ import { completerFromEnv } from "@/lib/quotes/llm";
 import { newToken } from "@/lib/auth";
 import { findOrCreateCustomer } from "@/lib/customers/store";
 import { sendEmail } from "@/lib/email";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { customerEmail } from "@/lib/format";
 
 export async function createEnquiryAndDraft(input: {
@@ -128,6 +129,7 @@ export async function createEnquiryAndDraft(input: {
   if (traderEmail) {
     await sendEmail({
       to: traderEmail,
+      sandbox: isSandboxTrader({ slug: trader.slug, email: trader.user.email }),
       subject: `New enquiry from ${input.customerName}`,
       text: [
         `${input.customerName} (${input.postcode}) sent an enquiry.`,

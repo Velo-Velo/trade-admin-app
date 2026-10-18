@@ -42,14 +42,13 @@ export default async function HomePage() {
             <p className="mt-5 max-w-lg text-lg leading-8">{HERO.lede}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a href="/register" className={buttonPrimary}>Create a free account</a>
-              {demo ? (
-                <form action={signInDemo}>
-                  <button className={buttonSecondary} type="submit">Try the demo</button>
-                </form>
-              ) : (
-                <a href="/login" className={buttonSecondary}>Sign in</a>
-              )}
+              <form action={signInDemo}>
+                <button className={buttonSecondary} type="submit">Try the demo</button>
+              </form>
             </div>
+            <p className="mt-3 max-w-lg text-sm leading-6 text-muted">
+              Try the demo opens a fictional business, separate from real accounts. It does not send real emails, WhatsApp messages or payments, and it resets each time you open it.
+            </p>
           </div>
           <PhonePreview />
         </section>

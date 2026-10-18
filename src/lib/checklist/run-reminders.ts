@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { sendEmail } from "../email";
+import { isSandboxTrader } from "../sandbox";
 import { runFollowUps } from "../followups/run";
 import { isDueForReminder, reminderCopy } from "./reminders";
 
@@ -42,6 +43,7 @@ export async function runReminders(now = new Date()): Promise<{
         to: item.trader.user.email,
         subject: copy.subject,
         text: `${item.trader.businessName}\n\n${copy.text}`,
+        sandbox: isSandboxTrader({ slug: item.trader.slug, email: item.trader.user.email }),
       });
       await prisma.checklistItem.update({
         where: { id: item.id },

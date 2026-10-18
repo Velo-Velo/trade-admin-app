@@ -1,20 +1,20 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth";
-import { demoModeEnabled } from "@/lib/demo";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { redirectWith } from "@/lib/redirects";
 import { handleInboundWhatsApp } from "@/lib/whatsapp/handle";
 
 async function linkedPhone(): Promise<{ phone: string } | null> {
-  if (!demoModeEnabled()) return null;
   const user = await getCurrentUser();
-  if (!user?.trader?.whatsappE164) return null;
+  if (!user?.trader || !isSandboxTrader({ slug: user.trader.slug, email: user.email })) return null;
+  if (!user.trader.whatsappE164) return null;
   return { phone: user.trader.whatsappE164 };
 }
 
 export async function simulateWhatsApp(formData: FormData) {
   const linked = await linkedPhone();
-  if (!linked) redirectWith("/whatsapp", "error", "Demo mode is off, or this account has no WhatsApp number linked.");
+  if (!linked) redirectWith("/whatsapp", "error", "The simulator is only on the sample account.");
   const text = String(formData.get("text") || "").trim();
   if (!text) redirectWith("/whatsapp", "error", "Type a message first.");
   await handleInboundWhatsApp({
@@ -28,7 +28,7 @@ export async function simulateWhatsApp(formData: FormData) {
 
 export async function simulateVoiceNote() {
   const linked = await linkedPhone();
-  if (!linked) redirectWith("/whatsapp", "error", "Demo mode is off, or this account has no WhatsApp number linked.");
+  if (!linked) redirectWith("/whatsapp", "error", "The simulator is only on the sample account.");
   await handleInboundWhatsApp({
     from: linked.phone,
     text: "Voice note transcript: The kitchen tap is dripping. Please quote to replace the tap.",

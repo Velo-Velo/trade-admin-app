@@ -2,22 +2,44 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DemoBanner } from "@/components/demo-banner";
 import { DocumentMast } from "@/components/document-mast";
+import { Flash } from "@/components/flash";
 import { buttonPrimary } from "@/components/styles";
+import { billingConfigured } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { isDemoSlug } from "@/lib/demo";
-import { formatDate, formatGBP } from "@/lib/format";
+import { firstParam, formatDate, formatGBP } from "@/lib/format";
 import { resolvePublicInvoiceView } from "@/lib/invoices/approval";
+import { cardButtonVisible } from "@/lib/payments/connect-status";
+import { isSandboxTrader } from "@/lib/sandbox";
+import { stripeConfigured } from "@/lib/stripe";
 import { paymentNote } from "@/lib/whatsapp/plan";
+import { startInvoicePayment } from "@/server/customer-actions";
 
 export const metadata: Metadata = { title: "Invoice", robots: { index: false, follow: false } };
 
-export default async function PublicInvoicePage({ params }: { params: Promise<{ token: string }> }) {
+export default async function PublicInvoicePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
+}) {
   const { token } = await params;
+  const query = await searchParams;
   const invoice = resolvePublicInvoiceView(
     await prisma.invoice.findUnique({ where: { publicToken: token }, include: { trader: true } }),
   );
   if (!invoice) notFound();
   const paid = invoice.status === "PAID";
+  const sandbox = isSandboxTrader({ slug: invoice.trader.slug });
+  const cardPay = cardButtonVisible({
+    stripeConfigured: stripeConfigured(),
+    sandbox,
+    stripeAccountId: invoice.trader.stripeAccountId,
+    stripeChargesEnabled: invoice.trader.stripeChargesEnabled,
+    plan: invoice.trader.plan,
+    billingOn: billingConfigured(),
+  });
 
   return (
     <div className="min-h-screen">
@@ -29,6 +51,9 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
         kicker={`Invoice ${invoice.number}`}
       />
       <main id="main" className="mx-auto grid max-w-3xl gap-8 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="lg:col-span-2">
+          <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+        </div>
         <section>
           <h1 className="font-serif text-4xl tracking-tight">{invoice.customerName}</h1>
           <p className="mt-2 text-sm text-muted">
@@ -62,12 +87,19 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
           ) : (
             <p className="mt-3 text-sm leading-6">Bank details were not on this invoice. Contact {invoice.businessName}.</p>
           )}
-          {invoice.stripePaymentUrl && !paid ? (
+          {paid ? (
+            <p className="mt-4 text-sm leading-6">This invoice is marked paid. Payment reminders have stopped.</p>
+          ) : cardPay ? (
+            <form action={startInvoicePayment} className="mt-4">
+              <input type="hidden" name="token" value={token} />
+              <button className={`${buttonPrimary} w-full`} type="submit">Pay {formatGBP(invoice.totalPence)} by card</button>
+            </form>
+          ) : invoice.stripePaymentUrl && !sandbox ? (
             <a className={`${buttonPrimary} mt-4 w-full`} href={invoice.stripePaymentUrl}>
               Pay {formatGBP(invoice.totalPence)} by card
             </a>
           ) : (
-            <p className="mt-4 text-sm leading-6">{paid ? "This invoice is marked paid." : paymentNote(null)}</p>
+            <p className="mt-4 text-sm leading-6">{paymentNote(null)}</p>
           )}
         </aside>
       </main>

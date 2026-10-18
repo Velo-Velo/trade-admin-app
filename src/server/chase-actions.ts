@@ -4,6 +4,7 @@ import { deliverCustomerChase } from "@/lib/chasers/deliver";
 import { parseFollowUpSettings } from "@/lib/chasers/plan";
 import { stopQuoteChases } from "@/lib/chasers/queue";
 import { getCurrentUser } from "@/lib/auth";
+import { enforceFeature, enforceVerified, traderSandbox } from "@/server/guards";
 import { prisma } from "@/lib/db";
 import { markQuoteLost } from "@/lib/quotes/approval";
 import { redirectWith } from "@/lib/redirects";
@@ -57,8 +58,11 @@ async function loadPending(traderId: string, chaseId: string) {
 }
 
 export async function sendChase(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
+  enforceFeature(user, "chasers", "/follow-ups");
+  enforceVerified(user, "/follow-ups");
+  const trader = user.trader;
   const chase = await loadPending(trader.id, String(formData.get("chaseId") || ""));
   if (!chase) redirectWith("/follow-ups", "error", "That reminder is no longer waiting to be sent.");
   const account = await prisma.trader.findUnique({ where: { id: trader.id } });
@@ -74,6 +78,7 @@ export async function sendChase(formData: FormData) {
     customerEmail: customer?.email ?? "",
     subject: chase.subject,
     text: chase.body,
+    sandbox: traderSandbox(user),
   });
   if (!sent.ok) redirectWith("/follow-ups", "error", sent.detail);
 
