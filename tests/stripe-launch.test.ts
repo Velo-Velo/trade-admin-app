@@ -172,19 +172,34 @@ describe("stripe webhook signatures", () => {
 });
 
 describe("accounts v2", () => {
-  it("creates a UK Express merchant that can take card payments directly", () => {
-    const params = expressAccountCreateParams({
+  it("creates a UK Express merchant the generally available API accepts", () => {
+    expect(expressAccountCreateParams({
       email: "trader@example.com",
       traderId: "trader_1",
       businessName: "Harbour Heating",
+    })).toEqual({
+      contact_email: "trader@example.com",
+      dashboard: "express",
+      display_name: "Harbour Heating",
+      identity: { country: "gb" },
+      configuration: {
+        merchant: {
+          capabilities: {
+            card_payments: { requested: true },
+          },
+        },
+      },
+      defaults: {
+        currency: "gbp",
+        locales: ["en-GB"],
+        responsibilities: {
+          fees_collector: "application",
+          losses_collector: "application",
+        },
+      },
+      metadata: { traderId: "trader_1" },
+      include: ["configuration.merchant", "requirements", "identity"],
     });
-    expect(params.dashboard).toBe("express");
-    expect(params.contact_email).toBe("trader@example.com");
-    expect(params.identity).toEqual({ country: "gb" });
-    expect(params.configuration?.merchant?.capabilities?.card_payments).toEqual({ requested: true });
-    expect(params.defaults?.responsibilities).toEqual({ fees_collector: "stripe", losses_collector: "stripe" });
-    expect(params.metadata).toEqual({ traderId: "trader_1" });
-    expect(JSON.stringify(params)).not.toContain("\"type\":\"express\"");
     const link = accountLinkParams({
       accountId: "acct_v2",
       refreshUrl: "https://example.test/business?stripe=refresh",

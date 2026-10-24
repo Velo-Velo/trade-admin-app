@@ -255,7 +255,7 @@ Updating `lastRemindedAt` happens after a successful log or send, so a failed se
 
 ## Card payments and plans
 
-Deposits and invoice payments use Stripe Checkout on the trader's connected account (United Kingdom). The account is created with Accounts v2: an Express dashboard, and the merchant configuration so the trader can take card payments. The charge is a direct charge, so the money goes to the trader. Checkout still sends the account id on the `stripeAccount` header. `STRIPE_PLATFORM_FEE_BPS` is an optional fee in basis points and defaults to `0`. Checkout asks for card, which is also how Apple Pay and Google Pay appear. Bacs is not requested.
+Deposits and invoice payments use Stripe Checkout on the trader's connected account (United Kingdom). The account is created with Accounts v2: an Express dashboard, merchant card payments, and the platform responsible for Stripe's processing fee and for a negative balance. The charge stays a direct charge: Checkout sends the account id on the `stripeAccount` header, and `application_fee_amount` is only `STRIPE_PLATFORM_FEE_BPS` (default `0`, so the trader receives the full payment). Checkout asks for card, which is also how Apple Pay and Google Pay appear. Bacs is not requested.
 
 The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
 

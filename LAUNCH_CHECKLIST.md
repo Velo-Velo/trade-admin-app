@@ -5,7 +5,7 @@ Prices below were read from [Render pricing](https://render.com/pricing) and [Re
 ## Done in the app
 
 - Stripe Connect for the UK uses Accounts v2. **Your page** creates an Express-dashboard merchant account and shows whether card payments are enabled.
-- Deposit and invoice pay buttons open Checkout on the trader's connected account. The payment goes to the trader. `STRIPE_PLATFORM_FEE_BPS` defaults to 0.
+- Deposit and invoice pay buttons open Checkout on the trader's connected account. The payment goes to the trader. The platform pays Stripe's card fee and covers a negative balance. `STRIPE_PLATFORM_FEE_BPS` defaults to 0.
 - Card is the only payment method requested. Apple Pay and Google Pay can appear inside Checkout. Bacs is not requested.
 - The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop. Plan events use `STRIPE_WEBHOOK_SECRET`. Deposit and invoice events use `STRIPE_CONNECT_WEBHOOK_SECRET`. Both destinations use the same URL.
 - Plans: Free, Trade at £11.99 a month, Splitstick bundle at £16.99 a month. Checkout and the customer portal are used once price ids are set. Until then, upgrade buttons stay hidden and paid features stay available.
