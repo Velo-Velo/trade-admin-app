@@ -13,6 +13,8 @@ import { interpretInbound, normaliseWhatsAppNumber } from "@/lib/whatsapp/interp
 import { ramsCompleterFromEnv } from "@/lib/rams/assist";
 import { matchJob, splitTradeQuery } from "@/lib/rams/match";
 import { renderRamsPdf } from "@/lib/rams/pdf";
+import { fillNearestHospital } from "@/lib/rams/nearest";
+import { withCurrentSignatures } from "@/lib/rams/pdf-data";
 import { createLibraryRams, ramsInclude, toPdfInput } from "@/lib/rams/store";
 import { draftInvoiceReply, draftQuoteReply, draftRamsReply, paymentNote } from "@/lib/whatsapp/plan";
 
@@ -196,6 +198,7 @@ export async function handleInboundWhatsApp(input: {
       replies.push(await reply(phone, linked.id, "That RAMS could not be started.", input.viaMeta));
       return replies;
     }
+    await fillNearestHospital(prisma, created.id);
     const planned = draftRamsReply({
       number: created.number,
       title: created.title,
@@ -210,7 +213,7 @@ export async function handleInboundWhatsApp(input: {
           include: ramsInclude,
         });
         if (rams) {
-          const pdf = await renderRamsPdf(toPdfInput(rams, linked));
+          const pdf = await renderRamsPdf(await withCurrentSignatures(prisma, rams.id, rams.contentVersion, toPdfInput(rams, linked)));
           await sendWhatsAppDocument(phone, pdf, `${created.number}.pdf`, "Draft RAMS. Check it before you send it on. Not health and safety advice.");
         }
       } catch (error) {

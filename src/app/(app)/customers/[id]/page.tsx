@@ -103,7 +103,7 @@ export default async function CustomerPage({
               <p className="font-semibold text-ink">
                 {rams.number} · {rams.title}
               </p>
-              <p className="mt-1 text-sm text-muted">{rams.status === "ISSUED" ? "Checked" : "Draft"}</p>
+              <p className="mt-1 text-sm text-muted">{rams.status === "SIGNED" || rams.status === "ISSUED" ? "Fully signed" : rams.status === "AWAITING_SIGNATURES" ? "Awaiting signatures" : "Draft"}</p>
             </a>
           ))
         )}

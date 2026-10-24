@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { firstParam, formatDate } from "@/lib/format";
 import { RAMS_DISCLAIMER } from "@/lib/rams/disclaimer";
 import { ramsTradeLabel } from "@/lib/rams/library";
+import { ramsStatusLabel } from "@/lib/rams/signing";
 
 export const metadata = { title: "RAMS" };
 
@@ -59,7 +60,7 @@ export default async function RamsListPage({
               <p className="font-semibold text-ink">
                 {item.number} · {item.title}
               </p>
-              <span className="text-sm font-semibold text-muted">{item.status === "ISSUED" ? "Checked" : "Draft"}</span>
+              <span className="text-sm font-semibold text-muted">{ramsStatusLabel(item.status)}</span>
             </div>
             <p className="mt-1 text-sm text-muted">
               {ramsTradeLabel(item.trade)}

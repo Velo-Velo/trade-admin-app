@@ -6,7 +6,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate } from "@/lib/format";
 import { COMPANY_DOCUMENT_KINDS, companyDocumentLabel, documentExpiry } from "@/lib/rams/documents";
-import { deleteCompanyDocument, saveCompanyDocument } from "@/server/document-actions";
+import { DOCUMENT_FILE_LIMIT } from "@/lib/rams/files";
+import { deleteCompanyDocument, deleteCompanyFile, saveCompanyDocument } from "@/server/document-actions";
 
 export const metadata = { title: "Company documents" };
 
@@ -28,6 +29,17 @@ export default async function DocumentsPage({
   const documents = await prisma.companyDocument.findMany({
     where: { traderId: user.trader.id },
     orderBy: [{ kind: "asc" }, { title: "asc" }],
+    select: {
+      id: true,
+      kind: true,
+      title: true,
+      issuer: true,
+      referenceNumber: true,
+      issuedOn: true,
+      expiresOn: true,
+      notes: true,
+      fileName: true,
+    },
   });
   const now = new Date();
 
@@ -41,7 +53,7 @@ export default async function DocumentsPage({
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
       <aside className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
-        Quotestick stores these for you. It does not fill in CHAS, SafeContractor, SMAS or Constructionline, and it does not say you are accredited. You submit any application yourself.
+        Quotestick stores these for you. It does not fill in CHAS, SafeContractor, SMAS or Constructionline, and it does not say you are accredited. You submit any application yourself. Files stay private: only you can view them while signed in.
       </aside>
       {documents.length === 0 ? <p className="card text-sm text-muted">Nothing saved yet.</p> : null}
       {documents.map((document) => {
@@ -91,6 +103,17 @@ export default async function DocumentsPage({
               <textarea className={inputClass} name="notes" rows={2} defaultValue={document.notes} />
             </label>
             {document.expiresOn ? <p className="text-sm text-muted">Expires {formatDate(document.expiresOn)}.</p> : null}
+            <label className={labelClass}>
+              File
+              <input className={inputClass} type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" />
+            </label>
+            <p className="text-xs text-muted">{DOCUMENT_FILE_LIMIT} {document.fileName ? `Current file: ${document.fileName}. Choosing a new file replaces it.` : "No file stored yet."}</p>
+            {document.fileName ? (
+              <p className="flex flex-wrap gap-3 text-sm font-semibold">
+                <a href={`/api/documents/${document.id}/file`}>View</a>
+                <a href={`/api/documents/${document.id}/file?download=1`}>Download</a>
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button className={buttonPrimary} type="submit">
                 Save
@@ -98,10 +121,18 @@ export default async function DocumentsPage({
             </div>
             <p className="text-xs text-muted">{companyDocumentLabel(document.kind)}</p>
           </form>
-          <form action={deleteCompanyDocument} className="flex justify-end">
-            <input type="hidden" name="documentId" value={document.id} />
-            <ConfirmSubmit className={buttonSecondary} label={`Remove ${document.title}`} message="Remove this document from your account?" />
-          </form>
+          <div className="flex flex-wrap justify-end gap-2">
+            {document.fileName ? (
+              <form action={deleteCompanyFile}>
+                <input type="hidden" name="documentId" value={document.id} />
+                <ConfirmSubmit className={buttonSecondary} label="Remove file" message="Remove the file from this document?" />
+              </form>
+            ) : null}
+            <form action={deleteCompanyDocument}>
+              <input type="hidden" name="documentId" value={document.id} />
+              <ConfirmSubmit className={buttonSecondary} label={`Remove ${document.title}`} message="Remove this document from your account?" />
+            </form>
+          </div>
           </div>
         );
       })}
@@ -143,6 +174,11 @@ export default async function DocumentsPage({
           Notes
           <textarea className={inputClass} name="notes" rows={2} />
         </label>
+        <label className={labelClass}>
+          File
+          <input className={inputClass} type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" />
+        </label>
+        <p className="text-xs text-muted">{DOCUMENT_FILE_LIMIT}</p>
         <button className={buttonPrimary} type="submit">
           Save document
         </button>

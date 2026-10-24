@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { RamsPdfInput } from "./pdf";
+import { invalidateSignaturesOnEdit } from "./sign-store";
 import { ramsTradeLabel } from "./library";
 import {
   defaultRamsTrade,
@@ -96,7 +97,7 @@ export async function createLibraryRams(
     competentRole?: string;
     competentPhone?: string;
     nearestHospital?: string;
-    briefings?: Array<{ operativeName: string; role?: string }>;
+    briefings?: Array<{ operativeName: string; role?: string; phone?: string }>;
     completer?: HazardCompleter | null;
     isTemplate?: boolean;
   },
@@ -176,6 +177,7 @@ export async function createLibraryRams(
             sortOrder: index,
             operativeName: clip(row.operativeName, 120),
             role: clip(row.role, 80),
+            phone: clip(row.phone, 40),
           })),
       },
     },
@@ -275,7 +277,7 @@ export async function cloneRams(
 export async function reloadRamsLibrary(
   db: Db,
   input: { traderId: string; ramsId: string; completer?: HazardCompleter | null },
-): Promise<"library" | "library-and-ai" | null> {
+): Promise<{ source: "library" | "library-and-ai"; reset: boolean } | null> {
   const current = await db.rams.findFirst({ where: { id: input.ramsId, traderId: input.traderId } });
   if (!current || !isRamsTrade(current.trade)) return null;
   const drafted = await draftRamsBody({
@@ -284,6 +286,7 @@ export async function reloadRamsLibrary(
     completer: input.completer,
   });
   const content = nestedContent(drafted.body);
+  let reset = false;
   const write = async (tx: Db) => {
     await tx.ramsHazard.deleteMany({ where: { ramsId: current.id } });
     await tx.ramsStep.deleteMany({ where: { ramsId: current.id } });
@@ -300,15 +303,13 @@ export async function reloadRamsLibrary(
         steps: content.steps,
         substances: content.substances,
         permits: content.permits,
-        status: "DRAFT",
-        signedName: "",
-        signedOn: null,
       },
     });
+    reset = await invalidateSignaturesOnEdit(tx, current.id);
   };
   if ("$transaction" in db) await db.$transaction((tx) => write(tx));
   else await write(db);
-  return drafted.source;
+  return { source: drafted.source, reset };
 }
 
 export function toPdfInput(

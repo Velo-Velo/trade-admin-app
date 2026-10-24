@@ -41,7 +41,7 @@ export function draftInvoiceReply(input: {
   };
 }
 
-export function draftRamsReply(input: { number: string; title: string; traderUrl: string; pdfUrl: string }): PlannedMessages {
+export function draftRamsReply(input: { number: string; title: string; traderUrl: string; pdfUrl: string; signUrl?: string }): PlannedMessages {
   return {
     traderText: [
       `Draft ${input.number} is ready: ${input.title}.`,
@@ -49,8 +49,11 @@ export function draftRamsReply(input: { number: string; title: string; traderUrl
       "Nothing has been sent to the customer or the main contractor.",
       `Open it: ${input.traderUrl}`,
       `PDF: ${input.pdfUrl}`,
+      input.signUrl ? `Signing link, for the people doing the work: ${input.signUrl}` : "",
       "It is a drafting aid, not health and safety advice.",
-    ].join("\n"),
+    ]
+      .filter(Boolean)
+      .join("\n"),
     customerText: null,
     customerPath: null,
   };

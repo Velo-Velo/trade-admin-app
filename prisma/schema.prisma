@@ -498,6 +498,13 @@ enum RamsTrade {
 enum RamsStatus {
   DRAFT
   ISSUED
+  AWAITING_SIGNATURES
+  SIGNED
+}
+
+enum RamsSignerKind {
+  APPROVER
+  OPERATIVE
 }
 
 model CompanyDocument {
@@ -510,6 +517,10 @@ model CompanyDocument {
   issuedOn        DateTime?
   expiresOn       DateTime?
   notes           String              @default("")
+  fileName        String              @default("")
+  fileMime        String              @default("")
+  fileBytes       Bytes?
+  storageKey      String              @default("")
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   trader          Trader              @relation(fields: [traderId], references: [id], onDelete: Cascade)
@@ -545,6 +556,7 @@ model Rams {
   firstAidNotes   String     @default("")
   welfareNotes    String     @default("")
   ppe             String     @default("")
+  contentVersion  Int        @default(1)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   trader          Trader     @relation(fields: [traderId], references: [id], onDelete: Cascade)
@@ -555,6 +567,8 @@ model Rams {
   substances      RamsSubstance[]
   permits         RamsPermit[]
   briefings       RamsBriefing[]
+  signers         RamsSigner[]
+  signatures      RamsSignature[]
 
   @@unique([traderId, number])
   @@index([traderId, updatedAt])
@@ -621,11 +635,46 @@ model RamsBriefing {
   sortOrder     Int
   operativeName String
   role          String    @default("")
+  phone         String    @default("")
   briefedOn     DateTime?
   signatureName String    @default("")
   rams          Rams      @relation(fields: [ramsId], references: [id], onDelete: Cascade)
 
   @@index([ramsId])
+}
+
+model RamsSigner {
+  id         String          @id @default(cuid())
+  ramsId     String
+  kind       RamsSignerKind
+  name       String
+  roleLabel  String          @default("")
+  phone      String          @default("")
+  token      String          @unique
+  createdAt  DateTime        @default(now())
+  rams       Rams            @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+  signatures RamsSignature[]
+
+  @@index([ramsId, kind])
+}
+
+model RamsSignature {
+  id             String         @id @default(cuid())
+  ramsId         String
+  signerId       String?
+  kind           RamsSignerKind
+  name           String
+  roleLabel      String         @default("")
+  image          Bytes
+  signedAt       DateTime       @default(now())
+  contentVersion Int
+  invalidatedAt  DateTime?
+  invalidReason  String         @default("")
+  rams           Rams           @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+  signer         RamsSigner?    @relation(fields: [signerId], references: [id], onDelete: SetNull)
+
+  @@index([ramsId, contentVersion])
+  @@index([signerId])
 }
 
 model JobPhoto {

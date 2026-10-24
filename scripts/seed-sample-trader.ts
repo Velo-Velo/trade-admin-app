@@ -598,7 +598,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       startOn: daysAgo(1),
       finishOn: daysAhead(1),
       clientRole: "Domestic client",
-      briefings: [{ operativeName: "Pat Sample", role: "Operative" }],
+      briefings: [{ operativeName: "Pat Sample", role: "Operative", phone: "07700900200" }],
     });
     if (!sampleRams) throw new Error("The sample RAMS was not created.");
     await tx.companyDocument.createMany({
@@ -612,6 +612,12 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
           issuedOn: daysAgo(40),
           expiresOn: daysAhead(240),
           notes: "Fictional policy for the demo. Not a real insurer.",
+          fileName: "sample-policy.png",
+          fileMime: "image/png",
+          fileBytes: Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            "base64",
+          ),
           updatedAt: new Date(),
         },
         {

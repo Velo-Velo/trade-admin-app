@@ -1,14 +1,19 @@
 import { notFound, redirect } from "next/navigation";
+import { AeField } from "@/components/ae-field";
 import { ConfirmSubmit } from "@/components/confirm-submit";
 import { Flash } from "@/components/flash";
 import { RiskPair } from "@/components/risk-pair";
+import { SignaturePad } from "@/components/signature-pad";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { dateInputValue, firstParam } from "@/lib/format";
+import { dateInputValue, firstParam, formatDate } from "@/lib/format";
+import { lookupNearestAe } from "@/lib/rams/ae";
 import { RAMS_DISCLAIMER } from "@/lib/rams/disclaimer";
 import { RAMS_TRADES, ramsTradeLabel } from "@/lib/rams/library";
 import { RISK_KEY, riskBand, riskBandTone, riskScore } from "@/lib/rams/risk";
+import { syncSigners } from "@/lib/rams/sign-store";
+import { ramsStatusLabel } from "@/lib/rams/signing";
 import { ramsInclude } from "@/lib/rams/store";
 import {
   addRamsHazard,
@@ -24,6 +29,7 @@ import {
   saveRamsMethod,
   saveRamsSubstances,
 } from "@/server/rams-actions";
+import { sendSigningLinks, signRamsAs } from "@/server/signature-actions";
 
 export const metadata = { title: "RAMS" };
 
@@ -41,7 +47,7 @@ export default async function RamsEditorPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; notice?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string; resign?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
@@ -53,9 +59,28 @@ export default async function RamsEditorPage({
       ...ramsInclude,
       job: { select: { id: true, title: true } },
       customer: { select: { id: true, name: true } },
+      signatures: {
+        orderBy: { signedAt: "desc" },
+        select: {
+          id: true,
+          signerId: true,
+          kind: true,
+          name: true,
+          roleLabel: true,
+          signedAt: true,
+          contentVersion: true,
+          invalidatedAt: true,
+          invalidReason: true,
+        },
+      },
     },
   });
   if (!rams) notFound();
+  if (!rams.isTemplate) await syncSigners(prisma, rams.id);
+  const signers = rams.isTemplate ? [] : await prisma.ramsSigner.findMany({ where: { ramsId: rams.id }, orderBy: { kind: "asc" } });
+  const ae = rams.sitePostcode ? await lookupNearestAe(rams.sitePostcode) : { ok: false as const, reason: "Add a postcode to suggest the nearest A&E." };
+  const currentSignatures = rams.signatures.filter((signature) => signature.invalidatedAt == null && signature.contentVersion === rams.contentVersion);
+  const history = rams.signatures.filter((signature) => signature.invalidatedAt != null);
   const highest = rams.hazards.reduce((max, hazard) => {
     return Math.max(max, riskScore(hazard.likelihoodAfter, hazard.severityAfter));
   }, 0);
@@ -64,7 +89,7 @@ export default async function RamsEditorPage({
     <div className="mx-auto grid max-w-3xl gap-5">
       <div>
         <p className="text-sm font-semibold text-muted">
-          {rams.number} · {ramsTradeLabel(rams.trade)} · {rams.isTemplate ? "Template" : rams.status === "ISSUED" ? "Checked" : "Draft"}
+          {rams.number} · {ramsTradeLabel(rams.trade)} · {rams.isTemplate ? "Template" : ramsStatusLabel(rams.status)} · version {rams.contentVersion}
         </p>
         <h1 className="font-serif text-4xl">{rams.title}</h1>
         <p className="mt-2 text-sm text-muted">
@@ -81,6 +106,18 @@ export default async function RamsEditorPage({
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      {query.resign === "1" && !rams.isTemplate ? (
+        <form action={sendSigningLinks} className="card grid gap-3 border-amber-300 bg-amber-50">
+          <input type="hidden" name="ramsId" value={rams.id} />
+          <input type="hidden" name="again" value="1" />
+          <p className="text-sm leading-6">
+            The old signatures no longer count. Send a fresh signing link to {signers.map((signer) => signer.name).join(", ") || "the approver and each operative"}.
+          </p>
+          <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">
+            Send signing links on WhatsApp
+          </button>
+        </form>
+      ) : null}
       <aside className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">{RAMS_DISCLAIMER}</aside>
       {rams.isTemplate ? (
         <p className="card text-sm leading-6">
@@ -286,10 +323,11 @@ export default async function RamsEditorPage({
       <form id="arrangements" action={saveRamsArrangements} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Arrangements</h2>
         <input type="hidden" name="ramsId" value={rams.id} />
-        <label className={labelClass}>
-          Nearest A&E
-          <input className={inputClass} name="nearestHospital" defaultValue={rams.nearestHospital} placeholder="Name the hospital for this site" />
-        </label>
+        <AeField
+          defaultValue={rams.nearestHospital}
+          suggestions={ae.ok ? ae.suggestions : []}
+          unavailable={ae.ok ? "" : ae.reason}
+        />
         <label className={labelClass}>
           PPE
           <textarea className={inputClass} name="ppe" rows={4} defaultValue={rams.ppe} />
@@ -328,72 +366,102 @@ export default async function RamsEditorPage({
         <div>
           <h2 className="font-serif text-2xl">Sign-off and briefing</h2>
           <p className="mt-1 text-sm leading-6 text-muted">
-            Your name is the competent-person sign-off. The sheet below is for the people who will do the work. Marking it checked does not send it to anyone.
+            {ramsStatusLabel(rams.status)}. The RAMS is fully signed only when you and every operative have signed this version. Editing the RAMS clears every signature and sets it back to awaiting signatures. Nothing is sent to the client.
           </p>
         </div>
-        <form id="save-briefing" action={saveRamsBriefing} className="grid gap-3">
-          <input type="hidden" name="ramsId" value={rams.id} />
-          <label className={labelClass}>
-            Signed by
-            <input className={inputClass} name="signedName" defaultValue={rams.signedName} placeholder="Type your name" />
-          </label>
-        </form>
-        {rams.briefings.map((briefing) => (
-          <article key={briefing.id} className="grid gap-2 rounded-md border border-sand p-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+        {rams.isTemplate ? <p className="text-sm leading-6">Templates are not signed. Sign the copy you put on a job.</p> : null}
+        {rams.isTemplate ? null : (
+          <form id="save-briefing" action={saveRamsBriefing} className="grid gap-3">
+            <input type="hidden" name="ramsId" value={rams.id} />
+            <p className="text-sm font-semibold">People who must sign</p>
+            {rams.briefings.map((briefing) => (
+              <div key={briefing.id} className="grid gap-3 sm:grid-cols-3">
+                <label className={labelClass}>
+                  Operative
+                  <input form="save-briefing" className={inputClass} name="operativeName" defaultValue={briefing.operativeName} />
+                </label>
+                <label className={labelClass}>
+                  Role
+                  <input form="save-briefing" className={inputClass} name="operativeRole" defaultValue={briefing.role} />
+                </label>
+                <label className={labelClass}>
+                  Mobile, for WhatsApp
+                  <input form="save-briefing" className={inputClass} name="operativePhone" defaultValue={briefing.phone} placeholder="07…" />
+                </label>
+              </div>
+            ))}
+            <div className="grid gap-3 rounded-md border border-dashed border-sand p-3 sm:grid-cols-3">
               <label className={labelClass}>
-                Operative
-                <input form="save-briefing" className={inputClass} name="operativeName" defaultValue={briefing.operativeName} />
+                Add an operative
+                <input form="save-briefing" className={inputClass} name="operativeName" placeholder="Name" />
               </label>
               <label className={labelClass}>
                 Role
-                <input form="save-briefing" className={inputClass} name="operativeRole" defaultValue={briefing.role} />
+                <input form="save-briefing" className={inputClass} name="operativeRole" placeholder="Operative" />
               </label>
               <label className={labelClass}>
-                Briefed on
-                <input form="save-briefing" className={inputClass} type="date" name="briefedOn" defaultValue={dateInputValue(briefing.briefedOn)} />
-              </label>
-              <label className={labelClass}>
-                Signature
-                <input form="save-briefing" className={inputClass} name="operativeSignature" defaultValue={briefing.signatureName} placeholder="Their name" />
+                Mobile
+                <input form="save-briefing" className={inputClass} name="operativePhone" placeholder="07…" />
               </label>
             </div>
-          </article>
-        ))}
-        <article className="grid gap-2 rounded-md border border-dashed border-sand p-3">
-          <p className="text-sm font-semibold">Add someone to the briefing</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className={labelClass}>
-              Operative
-              <input form="save-briefing" className={inputClass} name="operativeName" placeholder="Name" />
-            </label>
-            <label className={labelClass}>
-              Role
-              <input form="save-briefing" className={inputClass} name="operativeRole" placeholder="Operative" />
-            </label>
-            <label className={labelClass}>
-              Briefed on
-              <input form="save-briefing" className={inputClass} type="date" name="briefedOn" />
-            </label>
-            <label className={labelClass}>
-              Signature
-              <input form="save-briefing" className={inputClass} name="operativeSignature" placeholder="Their name, when they have signed" />
-            </label>
-          </div>
-        </article>
-        <div className="flex flex-wrap gap-2">
-          <button className={buttonSecondary} type="submit" form="save-briefing" name="intent" value="save">
-            Save sign-off
-          </button>
-          <button className={buttonPrimary} type="submit" form="save-briefing" name="intent" value="issue">
-            Mark as checked
-          </button>
-          {rams.status === "ISSUED" ? (
-            <button className={buttonSecondary} type="submit" form="save-briefing" name="intent" value="draft">
-              Back to draft
+            <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">
+              Save who must sign
             </button>
-          ) : null}
-        </div>
+          </form>
+        )}
+        {rams.isTemplate
+          ? null
+          : signers.map((signer) => {
+              const signed = currentSignatures.find((signature) => signature.signerId === signer.id);
+              return (
+                <article key={signer.id} className="grid gap-3 rounded-md border border-sand p-3">
+                  <div>
+                    <p className="font-semibold">
+                      {signer.name} · {signer.kind === "APPROVER" ? "Approver" : signer.roleLabel || "Operative"}
+                    </p>
+                    <p className="text-sm text-muted">
+                      {signed ? `Signed this version on ${formatDate(signed.signedAt)}.` : "Has not signed this version."}{" "}
+                      <a className="break-all font-semibold" href={`/sign/${signer.token}`}>
+                        Open {signer.name}&apos;s signing page
+                      </a>
+                    </p>
+                  </div>
+                  {signed ? (
+                    <img src={`/api/rams-signatures/${signed.id}`} alt={`Signature of ${signer.name}`} className="h-24 max-w-full rounded-md border border-sand bg-white" />
+                  ) : (
+                    <form action={signRamsAs} className="grid gap-3">
+                      <input type="hidden" name="ramsId" value={rams.id} />
+                      <input type="hidden" name="signerId" value={signer.id} />
+                      <SignaturePad />
+                      <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">
+                        Save {signer.name}&apos;s signature
+                      </button>
+                    </form>
+                  )}
+                </article>
+              );
+            })}
+        {rams.isTemplate ? null : (
+          <form action={sendSigningLinks}>
+            <input type="hidden" name="ramsId" value={rams.id} />
+            <input type="hidden" name="again" value={history.length > 0 ? "1" : "0"} />
+            <button className={buttonPrimary} type="submit">
+              {rams.status === "DRAFT" ? "Send for signatures on WhatsApp" : "Send signing links on WhatsApp"}
+            </button>
+          </form>
+        )}
+        {history.length > 0 ? (
+          <details className="text-sm leading-6">
+            <summary className="cursor-pointer font-semibold">Earlier signatures, no longer valid</summary>
+            <ul className="mt-2 grid gap-1 text-muted">
+              {history.map((signature) => (
+                <li key={signature.id}>
+                  {signature.name} signed version {signature.contentVersion} on {formatDate(signature.signedAt)}. {signature.invalidReason} Not shown on the PDF.
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
       </section>
 
       <section id="coshh" className="grid gap-3">

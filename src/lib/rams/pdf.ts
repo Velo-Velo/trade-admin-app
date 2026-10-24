@@ -17,7 +17,7 @@ export type RamsPdfHazard = {
 export type RamsPdfInput = {
   number: string;
   title: string;
-  status: "DRAFT" | "ISSUED";
+  status: "DRAFT" | "ISSUED" | "AWAITING_SIGNATURES" | "SIGNED";
   tradeLabel: string;
   businessName: string;
   logoText: string;
@@ -45,7 +45,8 @@ export type RamsPdfInput = {
   steps: Array<{ detail: string }>;
   substances: Array<{ name: string; hazard: string; controls: string }>;
   permits: Array<{ name: string; required: boolean; detail: string }>;
-  briefings: Array<{ operativeName: string; role: string; briefedOn: Date | null; signatureName: string }>;
+  briefings: Array<{ operativeName: string; role: string; briefedOn: Date | null; signatureName: string; signaturePng?: Buffer | null }>;
+  approverSignaturePng?: Buffer | null;
 };
 
 const INK = "#16181d";
@@ -66,6 +67,12 @@ function inkOn(hex: string): string {
   const blue = Number.parseInt(hex.slice(5, 7), 16);
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
   return luminance > 0.62 ? INK : "#fffdf8";
+}
+
+function statusPhrase(status: RamsPdfInput["status"]): string {
+  if (status === "SIGNED" || status === "ISSUED") return "Fully signed";
+  if (status === "AWAITING_SIGNATURES") return "Awaiting signatures — not fully signed";
+  return "Draft — check before you send it";
 }
 
 function bandHex(label: string): string {
@@ -121,7 +128,7 @@ export function renderRamsPdf(input: RamsPdfInput): Promise<Buffer> {
       .filter(Boolean)
       .join(" · ");
     doc.text(
-      `${input.tradeLabel}   ·   ${input.status === "ISSUED" ? "Checked by the trader" : "Draft — check before you send it"}${when ? `   ·   ${when}` : ""}`,
+      `${input.tradeLabel}   ·   ${statusPhrase(input.status)}${when ? `   ·   ${when}` : ""}`,
       40,
       y,
       { width },
@@ -215,7 +222,19 @@ export function renderRamsPdf(input: RamsPdfInput): Promise<Buffer> {
     y = pair(doc, y, width, "Name", input.competentName || "Not filled in");
     y = pair(doc, y, width, "Role", input.competentRole || "Competent person");
     if (input.competentPhone) y = pair(doc, y, width, "Phone", input.competentPhone);
-    y = pair(doc, y, width, "Signed", input.signedName ? `${input.signedName}${input.signedOn ? `, ${formatDate(input.signedOn)}` : ""}` : "Not signed yet");
+    if (input.status !== "SIGNED" && input.status !== "ISSUED") {
+      y = paragraph(doc, y, width, "This RAMS is not fully signed. Signatures from an older version are not shown. Everyone needs to sign the current version before you treat it as signed.");
+    }
+    if (input.approverSignaturePng && input.approverSignaturePng.length > 32) {
+      y = ensure(doc, y, 48);
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(MUTED).text("Signed", 40, y, { width: 100 });
+      doc.image(input.approverSignaturePng, 150, y, { fit: [180, 42] });
+      const caption = input.signedName ? `${input.signedName}${input.signedOn ? `, ${formatDate(input.signedOn)}` : ""}` : "Signed";
+      doc.font("Helvetica").fontSize(8).fillColor(INK).text(caption, 340, y + 14, { width: width - 300 });
+      y += 50;
+    } else {
+      y = pair(doc, y, width, "Signed", "Not signed yet");
+    }
 
     y = heading(doc, y, "Operative briefing", brand);
     y = paragraph(
@@ -225,12 +244,13 @@ export function renderRamsPdf(input: RamsPdfInput): Promise<Buffer> {
       "Each person confirms they have read this RAMS, understand the controls, know where the first-aid kit and the nearest A&E are, and will stop if the site changes.",
     );
     const rows = [...input.briefings];
-    while (rows.length < 6) rows.push({ operativeName: "", role: "", briefedOn: null, signatureName: "" });
+    while (rows.length < 4) rows.push({ operativeName: "", role: "", briefedOn: null, signatureName: "" });
     y = ensure(doc, y, 22);
     y = briefingHead(doc, y);
     for (const row of rows) {
-      y = ensure(doc, y, 22);
-      if (doc.y < 70 && y < 70) y = briefingHead(doc, y);
+      const rowHeight = row.signaturePng && row.signaturePng.length > 32 ? 48 : 22;
+      y = ensure(doc, y, rowHeight);
+      if (y < 70) y = briefingHead(doc, y);
       y = briefingRow(doc, y, row);
     }
 
@@ -349,20 +369,20 @@ function briefingHead(doc: PDFKit.PDFDocument, y: number): number {
 function briefingRow(
   doc: PDFKit.PDFDocument,
   y: number,
-  row: { operativeName: string; role: string; briefedOn: Date | null; signatureName: string },
+  row: { operativeName: string; role: string; briefedOn: Date | null; signatureName: string; signaturePng?: Buffer | null },
 ): number {
-  doc.moveTo(40, y + 20).lineTo(535, y + 20).strokeColor(LINE).lineWidth(0.4).stroke();
+  const tall = Boolean(row.signaturePng && row.signaturePng.length > 32);
+  const height = tall ? 48 : 20;
+  doc.moveTo(40, y + height).lineTo(535, y + height).strokeColor(LINE).lineWidth(0.4).stroke();
   doc.font("Helvetica").fontSize(8).fillColor(INK);
-  const values = [
-    row.operativeName,
-    row.role,
-    row.briefedOn ? formatDate(row.briefedOn) : "",
-    row.signatureName,
-  ];
+  const values = [row.operativeName, row.role, row.briefedOn ? formatDate(row.briefedOn) : row.signaturePng ? "Signed" : ""];
   let x = 44;
   values.forEach((value, index) => {
     doc.text(value, x, y + 6, { width: BRIEF_COLS[index] - 8, lineBreak: false, height: 12 });
     x += BRIEF_COLS[index];
   });
-  return y + 20;
+  if (row.signaturePng && row.signaturePng.length > 32) {
+    doc.image(row.signaturePng, x, y + 4, { fit: [BRIEF_COLS[3] - 12, 36] });
+  }
+  return y + height;
 }

@@ -250,4 +250,78 @@ describe("RAMS PDF", () => {
     expect(text).toContain("R-0001");
     expect(text).toContain("Drafting aid only");
   });
+
+  it("hides older signatures and says the RAMS is not fully signed", async () => {
+    const body = draftFromLibrary("PLUMBING_HEATING", "Replace the outside tap.");
+    const base = {
+      number: "R-0001",
+      title: "RAMS for Outside tap is dripping",
+      tradeLabel: "Plumbing and heating",
+      businessName: "Sample Harbour Heating",
+      logoText: "Sample Harbour",
+      brandColour: "#1f4a38",
+      phone: "07700 900100",
+      tradingAddress: "Sample address, United Kingdom",
+      siteAddress: "14 Sample Street, Bristol",
+      sitePostcode: "BS1 4ST",
+      clientName: "Riley Sample",
+      clientRole: "Domestic client",
+      startOn: new Date("2026-10-23T00:00:00.000Z"),
+      finishOn: new Date("2026-10-25T00:00:00.000Z"),
+      scopeOfWork: "Replace the outside tap.",
+      competentName: "Sam Sample",
+      competentRole: "Competent person",
+      competentPhone: "07700 900100",
+      signedName: "",
+      signedOn: null,
+      nearestHospital: "Bristol Royal Infirmary",
+      emergencyNotes: body.emergencyNotes,
+      firstAidNotes: body.firstAidNotes,
+      welfareNotes: body.welfareNotes,
+      ppe: body.ppe,
+      hazards: body.hazards,
+      steps: body.steps,
+      substances: body.substances,
+      permits: body.permits,
+      briefings: [{ operativeName: "Pat Sample", role: "Operative", briefedOn: null, signatureName: "" }],
+    };
+    const waiting = await renderRamsPdf({ ...base, status: "AWAITING_SIGNATURES" });
+    const waitingText = waiting
+      .toString("latin1")
+      .replace(/<([0-9A-Fa-f]+)>/g, (_match, hex: string) => Buffer.from(hex, "hex").toString("latin1"))
+      .replace(/ (-?\d+) /g, "");
+    expect(waitingText).toContain("Awaiting signatures");
+    expect(waitingText).toContain("not fully signed");
+    expect(waitingText).toContain("Signatures from an older version are not shown");
+    expect(waitingText).toContain("Not signed yet");
+    expect(waiting.includes("/Subtype /Image")).toBe(false);
+
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const signed = await renderRamsPdf({
+      ...base,
+      status: "SIGNED",
+      signedName: "Sam Sample",
+      signedOn: new Date("2026-10-24T12:00:00.000Z"),
+      approverSignaturePng: png,
+      briefings: [
+        {
+          operativeName: "Pat Sample",
+          role: "Operative",
+          briefedOn: new Date("2026-10-24T12:05:00.000Z"),
+          signatureName: "Pat Sample",
+          signaturePng: png,
+        },
+      ],
+    });
+    const signedText = signed
+      .toString("latin1")
+      .replace(/<([0-9A-Fa-f]+)>/g, (_match, hex: string) => Buffer.from(hex, "hex").toString("latin1"))
+      .replace(/ (-?\d+) /g, "");
+    expect(signedText).toContain("Fully signed");
+    expect(signedText).not.toContain("not fully signed");
+    expect(signed.includes("/Subtype /Image")).toBe(true);
+  });
 });

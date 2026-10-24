@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { renderRamsPdf } from "@/lib/rams/pdf";
+import { withCurrentSignatures } from "@/lib/rams/pdf-data";
 import { ramsInclude, toPdfInput } from "@/lib/rams/store";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -13,7 +14,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     include: ramsInclude,
   });
   if (!rams) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const pdf = await renderRamsPdf(toPdfInput(rams, user.trader));
+  const pdf = await renderRamsPdf(await withCurrentSignatures(prisma, rams.id, rams.contentVersion, toPdfInput(rams, user.trader)));
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
