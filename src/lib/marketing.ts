@@ -29,7 +29,7 @@ export const PLANS = [
   },
   {
     name: "Splitstick bundle",
-    price: "£14.99",
+    price: "£16.99",
     period: "a month",
     points: [
       "Everything in Trade",

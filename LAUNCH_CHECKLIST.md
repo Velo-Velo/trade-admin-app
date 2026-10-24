@@ -8,7 +8,7 @@ Prices below were read from [Render pricing](https://render.com/pricing) and [Re
 - Deposit and invoice pay buttons open Checkout on the trader's connected account. The payment goes to the trader. `STRIPE_PLATFORM_FEE_BPS` defaults to 0.
 - Card is the only payment method requested. Apple Pay and Google Pay can appear inside Checkout. Bacs is not requested.
 - The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop.
-- Plans: Free, Trade at £11.99 a month, Splitstick bundle at £14.99 a month. Checkout and the customer portal are used once price ids are set. Until then, upgrade buttons stay hidden and paid features stay available.
+- Plans: Free, Trade at £11.99 a month, Splitstick bundle at £16.99 a month. Checkout and the customer portal are used once price ids are set. Until then, upgrade buttons stay hidden and paid features stay available.
 - Free keeps the public page, checklist, enquiries, quotes, customers from those quotes, and the booked job created when a quote is accepted.
 - **Try the demo** works when `DEMO_MODE` is false. It resets only the fictional sample trader. That account does not send real email, WhatsApp or payments.
 - `npm start` still resets the sample trader only when `DEMO_MODE` is exactly `true`.
@@ -29,7 +29,7 @@ Use test mode until a test card payment and a test subscription both succeed. Li
 3. Settings → Connect → open **Express** accounts for the **United Kingdom**. Set the platform name, a support email, and the branding you want traders to see during onboarding. You do not paste an account id or a Connect client id into Render. The app creates the Express account when the trader clicks **Connect Stripe**.
 4. Products → add two recurring **GBP** prices in test mode:
    - Trade, £11.99 every month. Put that price id in `STRIPE_PRICE_TRADE`.
-   - Splitstick bundle, £14.99 every month. Put that price id in `STRIPE_PRICE_SPLITSTICK`.
+   - Splitstick bundle, £16.99 every month. Put that price id in `STRIPE_PRICE_SPLITSTICK`.
 5. Developers → Webhooks → Add endpoint.
    - URL: `https://<your Render app host>/api/stripe/webhook`
    - Listen to events on **your account and connected accounts**. The connected-account switch is required or invoice and deposit payments will not be marked paid.

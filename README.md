@@ -171,7 +171,7 @@ Every variable is listed in `.env.example`.
 | `STRIPE_SECRET_KEY` | No | Stripe secret key. Test key first (`sk_test_...`). Hides card buttons when empty. |
 | `STRIPE_WEBHOOK_SECRET` | No | Signing secret for `POST /api/stripe/webhook`. |
 | `STRIPE_PRICE_TRADE` | No | Stripe price id for Trade, £11.99 a month. |
-| `STRIPE_PRICE_SPLITSTICK` | No | Stripe price id for the Splitstick bundle, £14.99 a month. |
+| `STRIPE_PRICE_SPLITSTICK` | No | Stripe price id for the Splitstick bundle, £16.99 a month. |
 | `STRIPE_PLATFORM_FEE_BPS` | No | Platform fee in basis points. `0` leaves the full card payment with the trader. |
 | `ERROR_WEBHOOK_URL` | No | Optional URL that receives JSON when a page error is reported. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | No | Sends mail. Without `SMTP_HOST`, messages are logged only. |
@@ -239,7 +239,7 @@ Deposits and invoice payments use Stripe Checkout on the trader's connected Expr
 
 The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
 
-Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£14.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes and the booked job from an accepted quote. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
+Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes and the booked job from an accepted quote. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
 
 The webhook is `POST /api/stripe/webhook`. In the Stripe dashboard, listen to events on your account and on connected accounts. Send `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Put the signing secret in `STRIPE_WEBHOOK_SECRET`.
 
