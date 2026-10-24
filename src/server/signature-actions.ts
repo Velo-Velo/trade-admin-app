@@ -6,6 +6,7 @@ import { requestOrigin } from "@/lib/origin";
 import { syncSigners, recordSignature } from "@/lib/rams/sign-store";
 import { decodeSignaturePng, signingLinkMessage } from "@/lib/rams/signing";
 import { redirectWith } from "@/lib/redirects";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp/client";
 import { normaliseWhatsAppNumber } from "@/lib/whatsapp/interpret";
 
@@ -53,8 +54,10 @@ export async function signFromLink(formData: FormData) {
 }
 
 export async function sendSigningLinks(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  const trader = user?.trader ?? null;
+  if (!trader || !user) redirectWith("/login", "error", "Sign in to continue.");
+  const sandbox = isSandboxTrader({ slug: trader.slug, email: user.email });
   const ramsId = text(formData, "ramsId");
   const again = text(formData, "again") === "1";
   const rams = await prisma.rams.findFirst({ where: { id: ramsId, traderId: trader.id } });
@@ -92,7 +95,7 @@ export async function sendSigningLinks(formData: FormData) {
     const mobile = normaliseWhatsAppNumber(signer.phone);
     if (mobile && whatsappConfigured()) {
       try {
-        await sendWhatsAppText(mobile, body);
+        await sendWhatsAppText(mobile, body, { sandbox });
       } catch (error) {
         console.error("[rams sign link]", error);
       }

@@ -3,7 +3,7 @@ import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { demoModeEnabled } from "@/lib/demo";
+import { isDemoEmail, isDemoSlug } from "@/lib/demo";
 import { firstParam } from "@/lib/format";
 import { ChatLine } from "@/components/chat-line";
 import { simulateVoiceNote, simulateWhatsApp } from "@/server/whatsapp-sim-actions";
@@ -15,9 +15,9 @@ export default async function WhatsAppSimulatorPage({
 }: {
   searchParams: Promise<{ error?: string; notice?: string }>;
 }) {
-  if (!demoModeEnabled()) notFound();
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
+  if (!isDemoSlug(user.trader.slug) && !isDemoEmail(user.email)) notFound();
   const query = await searchParams;
   const phone = user.trader.whatsappE164;
   const messages = phone

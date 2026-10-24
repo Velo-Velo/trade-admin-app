@@ -69,15 +69,15 @@ You only need `DATABASE_URL`. Leave `OPENAI_API_KEY`, the Stripe keys and SMTP e
    npm run dev
    ```
 
-4. Click **Try the demo**. The same button is on the sign-in page. A banner stays on screen so the sample business is not mistaken for a real one.
+4. Click **Try the demo**. The same button is on the home page and the sign-in page. A banner stays on screen so the sample business is not mistaken for a real one.
 
-`DEMO_MODE` must be the string `true`. Anything else hides the button, and password or magic-link sign-in to `sample.trader@example.com` is refused. The sample account has no password. Running `npm run demo` again resets only that account.
+**Try the demo** is shown whether or not `DEMO_MODE` is true. It resets only `sample.trader@example.com` and then signs you into that account. Other traders are left alone. The sample account has no password. Password and magic-link sign-in to that address are refused unless `DEMO_MODE` is `true`. Registering that address is always refused. Running `npm run demo` again resets only that account.
 
 The public sample page is `/t/sample-harbour-heating`. Draft quotes on it stay hidden until you approve them inside the demo.
 
 `npm start` (the Render start command) applies migrations, loads the job templates, then runs the same sample reset **only when `DEMO_MODE` is `true`**. Any other value leaves the sample account unchanged. A free Render service runs that start command again when it wakes, so the sample trader is reset on each wake while demo mode is on. Other traders are not touched.
 
-With demo mode on, open `/whatsapp` after you sign in with **Try the demo**. That page is a chat simulator. It does not call Meta. The sample account already has a linked number, a paid invoice, an unpaid invoice with payment reminders switched on, and a draft invoice.
+After **Try the demo**, open `/whatsapp`. That page is a chat simulator on the sample account only. It does not call Meta, even if WhatsApp keys are set. The sample account already has a linked number, a paid invoice, an unpaid invoice with payment reminders switched on, and a draft invoice. Real email, WhatsApp and card payments are stubbed for that account.
 
 ## WhatsApp, invoices and reminders
 
@@ -89,7 +89,7 @@ Link a phone from **Your page**. Create a code, then from that phone send `LINK`
 
 Invoices use pounds. If the trader is not VAT registered, no VAT is added. If they are, the figure in the message is the total the customer pays, including VAT at 20%, unless the message says `plus VAT`. Bank details from **Your page** are printed on the PDF. Add them before you send a real invoice.
 
-Approving an invoice or a quote creates a Stripe card link when `STRIPE_SECRET_KEY` is set. The Stripe webhook marks the invoice paid, or the quote deposit paid. With no Stripe keys, the page says card payments are not switched on and no payment is taken. The trader can also mark an invoice paid (for a bank transfer). That stops payment reminders.
+Card payments are created when the customer clicks Pay, on the trader's own Stripe Connect account. With no Stripe keys, the pay button is hidden and the page says card payments are not switched on. The trader can also mark an invoice paid (for a bank transfer). That stops payment reminders. See `LAUNCH_CHECKLIST.md` for the Stripe and Render steps.
 
 Payment reminders are on for each new invoice. The trader can switch them off on that invoice. The sequence is the due date, 7 days later, and 14 days later. Wording gets more direct. They email the customer, and they stop when the invoice is paid. Invoice payment reminders do not use WhatsApp.
 
@@ -158,16 +158,16 @@ This app is set up for [Render](https://render.com), not Vercel. `render.yaml` d
 3. Connect the GitHub account and select this repository. Render reads `render.yaml`.
 4. Set the web service environment as follows. The blueprint fills the generated values. You only need to change `DEMO_MODE` if you want the sample business.
    - `DEMO_MODE` — set to `true` to click around the sample trader. The blueprint default is `false`. Change it on the blueprint review screen, or later under **Environment**, then use **Manual Deploy** so the new value is picked up at start.
-   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
+   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
    - Leave the blueprint values: `DATABASE_URL` (from Postgres), `SESSION_SECRET` (generated), `APP_URL` (from `RENDER_EXTERNAL_URL`), `CRON_SECRET` (generated), `SHOW_DEV_LINKS` = `false`, `NODE_ENV` = `production`, `NODE_VERSION` = `22`, `OPENAI_MODEL` = `gpt-4o-mini`, `SMTP_PORT` = `587`.
 5. Apply the blueprint. You do not need a Render shell. The start command is `npm start`, which runs `prisma migrate deploy`, loads the job templates, and resets the sample trader when `DEMO_MODE` is `true`.
-6. Open the `onrender.com` address and click **Try the demo**.
+6. Open the `onrender.com` address and click **Try the demo**. That works with `DEMO_MODE` left at `false`. It does not reset real traders.
 
 No shell is required. Migrations run at the start of every deploy and every cold start, before the site listens. A pre-deploy command is not used, because the free web service runs the start command and that is enough.
 
 `SHOW_DEV_LINKS` stays false, so magic links are not printed on the sign-in page.
 
-The blueprint uses Render’s **free** web service and **free** Postgres. A free web service sleeps when it is idle, and the next visit runs `npm start` again. While `DEMO_MODE` is `true`, that also resets the sample trader. Before real customers use the site, set `DEMO_MODE` back to `false` and change the web service plan to `0.5c-512mb` (or larger). If a free database is not available on the account, set the database plan to `0.1c-256mb`.
+The blueprint uses Render’s **free** web service and **free** Postgres. A free web service sleeps when it is idle, and the next visit runs `npm start` again. While `DEMO_MODE` is `true`, that also resets the sample trader. Before real customers use the site, keep `DEMO_MODE` at `false` and move off the free plans. The prices and the reasons are in `LAUNCH_CHECKLIST.md`. Short version, checked on the Render pricing page on 18 October 2026: web `0.5c-512mb` is $7 a month, Postgres `0.1c-256mb` is $6 a month, and the free database expires 30 days after it is created.
 
 Daily reminder emails are optional and are not in the default blueprint, because a Render cron job has no free plan (smallest is `0.5c-512mb`). The HTTP check is free aside from the web service itself: `GET` or `POST` `https://<your-app>/api/cron/reminders` with header `Authorization: Bearer <CRON_SECRET>`. To add the paid cron later, paste the service from `render.cron.yaml` into `render.yaml` and sync the blueprint, or create a cron job in the dashboard with those settings.
 
@@ -186,13 +186,18 @@ Every variable is listed in `.env.example`.
 | `APP_URL` | Yes for links in emails | Public site URL, no trailing slash. |
 | `OPENAI_API_KEY` | No | Adjusts draft quote wording. Templates are used when this is empty. |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini`. |
-| `STRIPE_SECRET_KEY` | No | Creates a card payment link when an invoice or a quote deposit is approved. |
-| `STRIPE_WEBHOOK_SECRET` | No | Marks an invoice or a quote deposit paid when Stripe calls `/api/stripe/webhook`. |
+| `STRIPE_SECRET_KEY` | No | Stripe secret key. Test key first (`sk_test_...`). Hides card buttons when empty. |
+| `STRIPE_WEBHOOK_SECRET` | No | Signing secret for the Your account event destination on `POST /api/stripe/webhook`. |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | No | Signing secret for the Connected accounts destination. Same URL. Needed so deposit and invoice payments are marked paid. |
+| `STRIPE_PRICE_TRADE` | No | Stripe price id for Trade, £11.99 a month. |
+| `STRIPE_PRICE_SPLITSTICK` | No | Stripe price id for the Splitstick bundle, £16.99 a month. |
+| `STRIPE_PLATFORM_FEE_BPS` | No | Platform fee in basis points. `0` leaves the full card payment with the trader. |
+| `ERROR_WEBHOOK_URL` | No | Optional URL that receives JSON when a page error is reported. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | No | Sends mail. Without `SMTP_HOST`, messages are logged only. |
 | `CRON_SECRET` | For the HTTP reminder | Bearer token for `/api/cron/reminders`. |
 | `SPLITSTICK_WEBHOOK_SECRET` | No | Bearer token for a future receipt feed. |
 | `SHOW_DEV_LINKS` | Local only | When `true` (and not production), the sign-in page shows the magic link. |
-| `DEMO_MODE` | No | When `true`, **Try the demo** is shown, `npm start` resets the sample trader, and `/whatsapp` simulates chat without Meta. |
+| `DEMO_MODE` | No | When `true`, `npm start` resets the sample trader. **Try the demo** is available either way and only resets that one account. |
 | `WHATSAPP_TOKEN` | No | Meta system-user token for the WhatsApp Business account. |
 | `WHATSAPP_PHONE_NUMBER_ID` | No | Phone number ID from the WhatsApp API setup screen. |
 | `WHATSAPP_VERIFY_TOKEN` | No | String you choose. Meta sends it when subscribing the webhook. |
@@ -247,13 +252,26 @@ Two ways to run the check:
 
 Updating `lastRemindedAt` happens after a successful log or send, so a failed send is tried again on the next run.
 
-## Card payments
+## Card payments and plans
 
-Stripe Checkout is used only after the customer has accepted, and only for the deposit. Money would go to the Stripe account whose secret key you set. This version does **not** use Stripe Connect, so do not point it at a platform account that should pay traders separately. If the keys are missing, the quote page says card payments are not switched on and that no payment has been taken.
+Deposits and invoice payments use Stripe Checkout on the trader's connected Express account (United Kingdom). The charge is a direct charge, so the money goes to the trader. `STRIPE_PLATFORM_FEE_BPS` is an optional fee in basis points and defaults to `0`. Checkout asks for card, which is also how Apple Pay and Google Pay appear. Bacs is not requested.
 
-The webhook is `POST /api/stripe/webhook`. In Stripe, send `checkout.session.completed` to `https://<your-app>/api/stripe/webhook` and put the signing secret in `STRIPE_WEBHOOK_SECRET`.
+The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
+
+Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, and RAMS. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
+
+The webhook is `POST /api/stripe/webhook`. Create two Stripe event destinations and give both that same URL. Each destination has its own signing secret.
+
+- **Your account** sends plan changes. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Put that signing secret in `STRIPE_WEBHOOK_SECRET`.
+- **Connected accounts** sends deposit and invoice payments, because those are direct charges on the trader's account. Event: `checkout.session.completed`. Put that signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
+
+The app checks the signature against either secret. A connected-account event includes the trader's account id. The payment is then matched by the checkout metadata or the payment link.
+
+The exact clicks in Stripe and Render are in `LAUNCH_CHECKLIST.md`.
 
 ## Tests
+
+Launch checks covered by the app: rate limits on sign-in, registration and public enquiries; a honeypot and a short-fill check on the enquiry form; secure cookies and security headers; password reset by email; email confirmation before a customer is sent a quote or invoice; a JSON data export and account deletion; a 404 page, an error page, and `GET /api/health`. The session cookie is essential, so there is no cookie banner. `ERROR_WEBHOOK_URL` is optional.
 
 ```bash
 npm test

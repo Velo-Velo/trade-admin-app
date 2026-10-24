@@ -16,6 +16,7 @@ export function AppNav({ slug, showSimulator }: { slug: string; showSimulator: b
     ["/price-book", "Price book"],
     ["/checklist", "Checklist"],
     ["/business", "Your page"],
+    ["/billing", "Plans"],
     ["/account", "Account"],
     ...(showSimulator ? [["/whatsapp", "WhatsApp"]] : []),
   ];

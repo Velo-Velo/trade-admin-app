@@ -40,7 +40,7 @@ export function chaserCopy(input: {
   const due = formatDate(input.dueAt);
   const pay = input.paymentUrl
     ? `Card link: ${input.paymentUrl}`
-    : "The invoice has the bank details. Card payment is not set up on this one.";
+    : "Pay from the invoice page. The card button is there when card payments are switched on. Otherwise use the bank details.";
   const link = `Invoice: ${input.invoiceUrl}`;
   if (input.stage <= 0) {
     return {

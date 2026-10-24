@@ -15,6 +15,7 @@ import { quoteChaseCopy, serviceChaseCopy } from "../src/lib/chasers/plan";
 import { coolingOffFor } from "../src/lib/quotes/cooling-off";
 import { buildDraftQuote, describeDraft } from "../src/lib/quotes/draft";
 import { PLUMBING_TEMPLATES } from "../src/lib/templates/plumbing";
+import { photoBytes } from "../src/lib/images/prepare";
 import { seedJobTemplates } from "../src/lib/templates/seed-job-templates";
 import { createLibraryRams } from "../src/lib/rams/store";
 import { draftRamsReply } from "../src/lib/whatsapp/plan";
@@ -72,10 +73,10 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
     const user = existing
       ? await tx.user.update({
           where: { id: existing.id },
-          data: { passwordHash: null },
+          data: { passwordHash: null, emailVerifiedAt: new Date() },
         })
       : await tx.user.create({
-          data: { email: DEMO_EMAIL, passwordHash: null },
+          data: { email: DEMO_EMAIL, passwordHash: null, emailVerifiedAt: new Date() },
         });
 
     const trader = await tx.trader.create({
@@ -190,7 +191,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
                   create: {
                     filename: "cistern-before.jpg",
                     mimeType: "image/jpeg",
-                    bytes: samplePhotos.cistern,
+                    bytes: photoBytes(samplePhotos.cistern),
                   },
                 }
               : undefined,
@@ -473,7 +474,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
             kind: "BEFORE",
             filename: "outside-tap-before.jpg",
             mimeType: "image/jpeg",
-            bytes: samplePhotos.outside,
+            bytes: photoBytes(samplePhotos.outside),
             showOnWebsite: true,
           },
         },
@@ -493,8 +494,8 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         doneAt: daysAgo(4),
         photos: {
           create: [
-            { kind: "BEFORE", filename: "kitchen-tap-before.jpg", mimeType: "image/jpeg", bytes: samplePhotos.beforeTap, showOnWebsite: true },
-            { kind: "AFTER", filename: "kitchen-tap-after.jpg", mimeType: "image/jpeg", bytes: samplePhotos.afterTap, showOnWebsite: true },
+            { kind: "BEFORE", filename: "kitchen-tap-before.jpg", mimeType: "image/jpeg", bytes: photoBytes(samplePhotos.beforeTap), showOnWebsite: true },
+            { kind: "AFTER", filename: "kitchen-tap-after.jpg", mimeType: "image/jpeg", bytes: photoBytes(samplePhotos.afterTap), showOnWebsite: true },
           ],
         },
       },
@@ -516,7 +517,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
             kind: "AFTER",
             filename: "basin-tap-after.jpg",
             mimeType: "image/jpeg",
-            bytes: samplePhotos.basin,
+            bytes: photoBytes(samplePhotos.basin),
             showOnWebsite: true,
           },
         },

@@ -2,26 +2,53 @@ import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { firstParam } from "@/lib/format";
+import { platformFeeBps, platformFeeSentence } from "@/lib/payments/fee";
+import { connectStatusLabel } from "@/lib/payments/connect-status";
+import { syncConnectAccount, onboardingUrl } from "@/lib/payments/connect";
+import { isSandboxTrader } from "@/lib/sandbox";
+import { stripeConfigured } from "@/lib/stripe";
 import { requestOrigin } from "@/lib/origin";
 import { TRADES } from "@/lib/trades";
 import { SITE_THEME_CHOICES } from "@/lib/site-theme";
 import { updateBusiness, updateSiteTheme } from "@/server/business-actions";
 import { updateFollowUpSettings } from "@/server/chase-actions";
 import { createWhatsAppLink, unlinkWhatsApp, updatePaymentSettings } from "@/server/invoice-actions";
+import { refreshStripeConnect, startStripeConnect } from "@/server/stripe-actions";
 
 export const metadata = { title: "Your page" };
 
 export default async function BusinessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; notice?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string; stripe?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
-  const trader = user.trader;
   const query = await searchParams;
   const origin = await requestOrigin();
+  const sandbox = isSandboxTrader({ slug: user.trader.slug, email: user.email });
+  const stripeFlag = firstParam(query.stripe);
+  if (stripeFlag === "return" && user.trader.stripeAccountId && stripeConfigured() && !sandbox) {
+    await syncConnectAccount(user.trader.id, user.trader.stripeAccountId);
+  }
+  if (stripeFlag === "refresh" && user.trader.stripeAccountId && stripeConfigured() && !sandbox) {
+    const url = await onboardingUrl({
+      accountId: user.trader.stripeAccountId,
+      refreshUrl: `${origin}/business?stripe=refresh`,
+      returnUrl: `${origin}/business?stripe=return`,
+    });
+    if (url) redirect(url);
+  }
+  const trader = (await prisma.trader.findUnique({ where: { id: user.trader.id } })) ?? user.trader;
+  const connect = connectStatusLabel({
+    stripeConfigured: stripeConfigured(),
+    sandbox,
+    stripeAccountId: trader.stripeAccountId,
+    stripeDetailsSubmitted: trader.stripeDetailsSubmitted,
+    stripeChargesEnabled: trader.stripeChargesEnabled,
+  });
   const publicUrl = `${origin}/t/${trader.slug}`;
 
   return (
@@ -171,6 +198,24 @@ export default async function BusinessPage({
         <p className="text-sm leading-6 text-muted">Leave this off if you want to read each note before it goes to the customer.</p>
         <button className={buttonPrimary} type="submit">Save follow-up settings</button>
       </form>
+      <section id="stripe-connect" className="grid gap-3 border-t border-sand pt-6">
+        <h2 className="font-serif text-2xl">Connect Stripe</h2>
+        <p className="text-sm font-semibold">{connect.label}</p>
+        <p className="text-sm leading-6 text-muted">{connect.detail}</p>
+        <p className="text-sm leading-6 text-muted">{platformFeeSentence(platformFeeBps())}</p>
+        <p className="text-sm leading-6 text-muted">
+          Card, Apple Pay and Google Pay. Bank transfer by Bacs is not offered here. Customers pay on the quote or invoice page, and the money goes to your connected account.
+        </p>
+        {sandbox ? null : stripeConfigured() ? (
+          <form action={trader.stripeAccountId && !trader.stripeChargesEnabled ? refreshStripeConnect : startStripeConnect}>
+            <button className={buttonPrimary} type="submit">
+              {trader.stripeChargesEnabled ? "Update Stripe details" : trader.stripeAccountId ? "Continue Stripe setup" : "Connect Stripe"}
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm leading-6">The Connect button stays hidden until a Stripe secret key is set. No payment can be taken.</p>
+        )}
+      </section>
       <section className="grid gap-3 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">WhatsApp</h2>
         <p className="text-sm leading-6 text-muted">

@@ -4,7 +4,8 @@ import { findOrCreateCustomer } from "@/lib/customers/store";
 import { soleUninvoicedJob } from "@/lib/jobs/board";
 import { customerEmail } from "@/lib/format";
 import { deliver } from "@/lib/channels";
-import { createGbpPaymentLink } from "@/lib/payments/link";
+import { billingConfigured, featureAllowed, sendBlockReason, upgradeMessage } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { approveInvoiceDraft, customerInvoicePath } from "@/lib/invoices/approval";
 import { splitVat } from "@/lib/invoices/vat";
 import type { ParsedInvoice } from "@/lib/invoices/parse";
@@ -81,12 +82,15 @@ export async function createDraftInvoice(input: {
 export async function approveInvoice(invoiceId: string, traderId: string, origin: string) {
   const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, traderId } });
   if (!invoice) return null;
+  const trader = await prisma.trader.findUnique({ where: { id: traderId }, include: { user: true } });
+  if (!trader) return null;
+  const sandbox = isSandboxTrader({ slug: trader.slug, email: trader.user.email });
+  if (!featureAllowed({ plan: trader.plan, feature: "invoices", sandbox, billingOn: billingConfigured() })) {
+    throw new Error(upgradeMessage("invoices"));
+  }
+  const blocked = sendBlockReason({ emailVerifiedAt: trader.user.emailVerifiedAt, sandbox });
+  if (blocked) throw new Error(blocked);
   const next = approveInvoiceDraft(invoice.status);
-  const pay = await createGbpPaymentLink({
-    name: `Invoice ${invoice.number}`,
-    amountPence: invoice.totalPence,
-    metadata: { invoiceId: invoice.id },
-  });
   const now = new Date();
   await prisma.invoice.update({
     where: { id: invoice.id },
@@ -94,13 +98,11 @@ export async function approveInvoice(invoiceId: string, traderId: string, origin
       status: next,
       approvedAt: now,
       sentAt: now,
-      stripePaymentLinkId: pay.id,
-      stripePaymentUrl: pay.url,
     },
   });
   const released = customerInvoicePath(next, invoice.publicToken);
   const customerUrl = `${origin}${released.path}`;
-  const note = paymentNote(pay.url);
+  const note = paymentNote(invoice.stripePaymentUrl);
   const email = customerEmail(invoice.customerContact);
   let customerDetail = "Approved. No email address on the invoice, so the customer was not emailed.";
   if (email) {
@@ -116,6 +118,7 @@ export async function approveInvoice(invoiceId: string, traderId: string, origin
         customerUrl,
         note,
       ].join("\n"),
+      sandbox,
     });
     customerDetail = result.stubbed
       ? "Approved. The customer link is live. Email was logged, not sent (no SMTP configured)."

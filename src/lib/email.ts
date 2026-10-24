@@ -10,7 +10,16 @@ export async function sendEmail(input: {
   to: string;
   subject: string;
   text: string;
+  sandbox?: boolean;
 }): Promise<EmailResult> {
+  if (input.sandbox) {
+    console.info(`[email sandbox]\nTo: ${input.to}\nSubject: ${input.subject}\n${input.text}\n`);
+    return {
+      delivered: false,
+      stubbed: true,
+      detail: "Sample account. The email was not sent.",
+    };
+  }
   const host = process.env.SMTP_HOST?.trim();
   if (!host) {
     console.info(

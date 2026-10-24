@@ -9,8 +9,13 @@ import {
   resolvePublicQuoteView,
 } from "@/lib/quotes/approval";
 import { redirect } from "next/navigation";
-import { redirectWith } from "@/lib/redirects";
-import { stripeClient } from "@/lib/stripe";
+import { isNextRedirect, redirectWith } from "@/lib/redirects";
+import { billingConfigured } from "@/lib/billing/plans";
+import { connectedCheckoutArgs } from "@/lib/payments/checkout";
+import { cardButtonVisible } from "@/lib/payments/connect-status";
+import { platformFeePence } from "@/lib/payments/fee";
+import { isSandboxTrader } from "@/lib/sandbox";
+import { stripeClient, stripeConfigured } from "@/lib/stripe";
 import { stopQuoteChases } from "@/lib/chasers/queue";
 import { ensureBookedJob } from "@/lib/jobs/ensure";
 
@@ -62,6 +67,7 @@ export async function acceptQuote(formData: FormData) {
         to: trader.user.email,
         subject: `${quote.customerName} accepted quote ${quote.number}`,
         text: `${quote.customerName} accepted quote ${quote.number}.\n\n${origin}/quotes/${quote.id}`,
+        sandbox: isSandboxTrader({ slug: trader.slug, email: trader.user.email }),
       });
     } catch (error) {
       console.error("[accept email]", error);
@@ -113,47 +119,116 @@ export async function startDeposit(formData: FormData) {
   if (totals.deposit <= 0) {
     redirectWith(`/q/${token}`, "notice", "This quote does not ask for a deposit.");
   }
+  await openConnectedCheckout({
+    path: `/q/${token}`,
+    amountPence: totals.deposit,
+    name: `Deposit for quote ${quote.number}`,
+    description: quote.trader.businessName,
+    metadata: { quoteId: quote.id },
+    customerEmail: customerEmail(quote.customerContact),
+    trader: quote.trader,
+    successPath: `/q/${token}?deposit=pending`,
+    cancelPath: `/q/${token}?deposit=cancelled`,
+    remember: async (sessionId) => {
+      await prisma.quote.update({ where: { id: quote.id }, data: { stripeSessionId: sessionId } });
+    },
+  });
+}
+
+export async function startInvoicePayment(formData: FormData) {
+  const token = String(formData.get("token") || "");
+  const invoice = await prisma.invoice.findUnique({
+    where: { publicToken: token },
+    include: { trader: true },
+  });
+  if (!invoice || invoice.status === "DRAFT") {
+    redirectWith(`/i/${token}`, "error", "This invoice is not available.");
+  }
+  if (invoice.paidAt || invoice.status === "PAID") redirect(`/i/${token}`);
+  if (invoice.totalPence <= 0) {
+    redirectWith(`/i/${token}`, "notice", "There is nothing to pay on this invoice.");
+  }
+  await openConnectedCheckout({
+    path: `/i/${token}`,
+    amountPence: invoice.totalPence,
+    name: `Invoice ${invoice.number}`,
+    description: invoice.businessName,
+    metadata: { invoiceId: invoice.id },
+    customerEmail: customerEmail(invoice.customerContact),
+    trader: invoice.trader,
+    successPath: `/i/${token}?paid=pending`,
+    cancelPath: `/i/${token}?paid=cancelled`,
+    remember: async (sessionId) => {
+      await prisma.invoiceEvent.create({
+        data: {
+          invoiceId: invoice.id,
+          type: "pay_opened",
+          channel: "web",
+          detail: `Card payment page opened (${sessionId}).`,
+        },
+      });
+    },
+  });
+}
+
+async function openConnectedCheckout(input: {
+  path: string;
+  amountPence: number;
+  name: string;
+  description: string;
+  metadata: Record<string, string>;
+  customerEmail: string | null;
+  trader: {
+    slug: string;
+    plan: "FREE" | "TRADE" | "SPLITSTICK";
+    stripeAccountId: string | null;
+    stripeChargesEnabled: boolean;
+  };
+  successPath: string;
+  cancelPath: string;
+  remember: (sessionId: string) => Promise<void>;
+}) {
+  const sandbox = isSandboxTrader({ slug: input.trader.slug });
+  const visible = cardButtonVisible({
+    stripeConfigured: stripeConfigured(),
+    sandbox,
+    stripeAccountId: input.trader.stripeAccountId,
+    stripeChargesEnabled: input.trader.stripeChargesEnabled,
+    plan: input.trader.plan,
+    billingOn: billingConfigured(),
+  });
+  if (sandbox || !visible || !input.trader.stripeAccountId) {
+    redirectWith(input.path, "notice", "Card payments are not switched on. No payment has been taken.");
+  }
+  if (input.amountPence < 30) {
+    redirectWith(input.path, "notice", "That amount is too small for a card payment. No payment has been taken.");
+  }
   const stripe = stripeClient();
   if (!stripe) {
-    redirectWith(
-      `/q/${token}`,
-      "notice",
-      "Card payments are not switched on. No payment has been taken. The trader will arrange the deposit with you.",
-    );
+    redirectWith(input.path, "notice", "Card payments are not switched on. No payment has been taken.");
   }
   const origin = await requestOrigin();
-  const email = customerEmail(quote.customerContact);
+  const args = connectedCheckoutArgs({
+    name: input.name,
+    description: input.description,
+    amountPence: input.amountPence,
+    metadata: input.metadata,
+    customerEmail: input.customerEmail,
+    successUrl: `${origin}${input.successPath}`,
+    cancelUrl: `${origin}${input.cancelPath}`,
+    stripeAccountId: input.trader.stripeAccountId,
+    feePence: platformFeePence(input.amountPence),
+  });
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: email ?? undefined,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: "gbp",
-            unit_amount: totals.deposit,
-            product_data: {
-              name: `Deposit for quote ${quote.number}`,
-              description: quote.trader.businessName,
-            },
-          },
-        },
-      ],
-      metadata: { quoteId: quote.id },
-      success_url: `${origin}/q/${token}?deposit=pending`,
-      cancel_url: `${origin}/q/${token}?deposit=cancelled`,
-    });
-    await prisma.quote.update({
-      where: { id: quote.id },
-      data: { stripeSessionId: session.id },
-    });
+    const session = await stripe.checkout.sessions.create(args.params, args.options);
+    await input.remember(session.id);
     if (!session.url) {
-      redirectWith(`/q/${token}`, "error", "The card payment page could not be opened.");
+      redirectWith(input.path, "error", "The card payment page could not be opened. No payment has been taken.");
     }
     redirect(session.url);
   } catch (error) {
+    if (isNextRedirect(error)) throw error;
     console.error("[stripe]", error);
-    redirectWith(`/q/${token}`, "error", "The card payment page could not be opened. No payment has been taken.");
+    redirectWith(input.path, "error", "The card payment page could not be opened. No payment has been taken.");
   }
 }

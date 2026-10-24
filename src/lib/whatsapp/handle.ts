@@ -6,7 +6,8 @@ import { createEnquiryAndDraft } from "@/lib/enquiries/create-draft";
 import { createDraftInvoice, approveInvoice } from "@/lib/invoices/store";
 import { parseInvoiceText } from "@/lib/invoices/parse";
 import { renderInvoicePdf } from "@/lib/invoices/pdf";
-import { createGbpPaymentLink } from "@/lib/payments/link";
+import { billingConfigured, featureAllowed, sendBlockReason, upgradeMessage } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { approveDraft, deliveryForCustomer } from "@/lib/quotes/approval";
 import { sendWhatsAppDocument, sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp/client";
 import { interpretInbound, normaliseWhatsAppNumber } from "@/lib/whatsapp/interpret";
@@ -28,9 +29,9 @@ async function remember(phone: string, traderId: string | null, direction: "in" 
   });
 }
 
-async function reply(phone: string, traderId: string | null, text: string, viaMeta: boolean): Promise<string> {
+async function reply(phone: string, traderId: string | null, text: string, viaMeta: boolean, sandbox = false): Promise<string> {
   await remember(phone, traderId, "out", text);
-  if (viaMeta && whatsappConfigured()) {
+  if (viaMeta && whatsappConfigured() && !sandbox) {
     try {
       await sendWhatsAppText(phone, text);
     } catch (error) {
@@ -58,6 +59,7 @@ export async function handleInboundWhatsApp(input: {
 
   const intent = interpretInbound(input.text);
   const linked = await prisma.trader.findUnique({ where: { whatsappE164: phone }, include: { user: true } });
+  const sandbox = isSandboxTrader({ slug: linked?.slug, email: linked?.user.email });
   await remember(phone, linked?.id ?? null, "in", input.text);
   const origin = appOrigin();
   const replies: string[] = [];
@@ -69,6 +71,7 @@ export async function handleInboundWhatsApp(input: {
         linked?.id ?? null,
         "Send a job description, an invoice such as: Invoice Mrs Jones, replaced tap, £80, or RAMS for a job you already have.",
         input.viaMeta,
+        sandbox,
       ),
     );
     return replies;
@@ -82,9 +85,14 @@ export async function handleInboundWhatsApp(input: {
       replies.push(await reply(phone, null, "That link code is not valid or it has expired. Create a new one in Quotestick, under Your page.", input.viaMeta));
       return replies;
     }
+    const linkSandbox = isSandboxTrader({ slug: trader.slug });
+    if (!featureAllowed({ plan: trader.plan, feature: "whatsapp", sandbox: linkSandbox, billingOn: billingConfigured() })) {
+      replies.push(await reply(phone, trader.id, upgradeMessage("whatsapp"), input.viaMeta, linkSandbox));
+      return replies;
+    }
     const taken = await prisma.trader.findUnique({ where: { whatsappE164: phone } });
     if (taken && taken.id !== trader.id) {
-      replies.push(await reply(phone, trader.id, "This WhatsApp number is already linked to another Quotestick account.", input.viaMeta));
+      replies.push(await reply(phone, trader.id, "This WhatsApp number is already linked to another Quotestick account.", input.viaMeta, linkSandbox));
       return replies;
     }
     await prisma.trader.update({
@@ -97,8 +105,14 @@ export async function handleInboundWhatsApp(input: {
         trader.id,
         `Linked to ${trader.businessName}. Send a job for a draft quote, an invoice, or RAMS for a job you already have.`,
         input.viaMeta,
+        linkSandbox,
       ),
     );
+    return replies;
+  }
+
+  if (linked && !featureAllowed({ plan: linked.plan, feature: "whatsapp", sandbox, billingOn: billingConfigured() })) {
+    replies.push(await reply(phone, linked.id, upgradeMessage("whatsapp"), input.viaMeta, sandbox));
     return replies;
   }
 
@@ -116,14 +130,14 @@ export async function handleInboundWhatsApp(input: {
 
   if (intent.type === "approve") {
     const text = await approveForTrader(linked.id, intent.number, origin);
-    replies.push(await reply(phone, linked.id, text, input.viaMeta));
+    replies.push(await reply(phone, linked.id, text, input.viaMeta, sandbox));
     return replies;
   }
 
   if (intent.type === "invoice") {
     const parsed = parseInvoiceText(intent.raw);
     if (!parsed.ok) {
-      replies.push(await reply(phone, linked.id, parsed.error, input.viaMeta));
+      replies.push(await reply(phone, linked.id, parsed.error, input.viaMeta, sandbox));
       return replies;
     }
     const invoice = await createDraftInvoice({ traderId: linked.id, parsed: parsed.data, source: "whatsapp" });
@@ -133,8 +147,8 @@ export async function handleInboundWhatsApp(input: {
       summary: `${invoice.description}. ${formatGBP(invoice.totalPence)}. Due ${invoice.dueAt.toISOString().slice(0, 10)}.`,
       traderUrl: `${origin}/invoices/${invoice.id}`,
     });
-    replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta));
-    if (input.viaMeta && whatsappConfigured()) {
+    replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta, sandbox));
+    if (input.viaMeta && whatsappConfigured() && !sandbox) {
       try {
         const pdf = await renderInvoicePdf({ ...invoice, issuedAt: invoice.createdAt, paymentUrl: null });
         await sendWhatsAppDocument(phone, pdf, `${invoice.number}.pdf`, "Draft invoice. Not sent to the customer.");
@@ -172,6 +186,7 @@ export async function handleInboundWhatsApp(input: {
           linked.id,
           "I could not match that to a job. Open RAMS in Quotestick, or send RAMS for and the job name.",
           input.viaMeta,
+          sandbox,
         ),
       );
       return replies;
@@ -184,6 +199,7 @@ export async function handleInboundWhatsApp(input: {
           linked.id,
           `That matches more than one job: ${names.join("; ")}. Send RAMS for and the job name.`,
           input.viaMeta,
+          sandbox,
         ),
       );
       return replies;
@@ -195,7 +211,7 @@ export async function handleInboundWhatsApp(input: {
       completer: ramsCompleterFromEnv(),
     });
     if (!created) {
-      replies.push(await reply(phone, linked.id, "That RAMS could not be started.", input.viaMeta));
+      replies.push(await reply(phone, linked.id, "That RAMS could not be started.", input.viaMeta, sandbox));
       return replies;
     }
     await fillNearestHospital(prisma, created.id);
@@ -205,8 +221,8 @@ export async function handleInboundWhatsApp(input: {
       traderUrl: `${origin}/rams/${created.id}`,
       pdfUrl: `${origin}/api/rams/${created.id}/pdf`,
     });
-    replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta));
-    if (input.viaMeta && whatsappConfigured()) {
+    replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta, sandbox));
+    if (input.viaMeta && whatsappConfigured() && !sandbox) {
       try {
         const rams = await prisma.rams.findFirst({
           where: { id: created.id, traderId: linked.id },
@@ -238,7 +254,7 @@ export async function handleInboundWhatsApp(input: {
     summary: intent.text.slice(0, 280),
     traderUrl: `${origin}/quotes/${created.quoteId}`,
   });
-  replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta));
+  replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta, sandbox));
   return replies;
 }
 
@@ -247,7 +263,12 @@ async function approveForTrader(traderId: string, number: string | null, origin:
     const invoice = await prisma.invoice.findFirst({ where: { traderId, number } });
     if (!invoice) return `There is no invoice ${number} on your account.`;
     if (invoice.status !== "DRAFT") return `${number} is already ${invoice.status.toLowerCase()}. Nothing new was sent.`;
-    const approved = await approveInvoice(invoice.id, traderId, origin);
+    let approved: Awaited<ReturnType<typeof approveInvoice>>;
+    try {
+      approved = await approveInvoice(invoice.id, traderId, origin);
+    } catch (error) {
+      return error instanceof Error ? error.message : "That invoice could not be approved. Nothing was sent.";
+    }
     if (!approved) return "That invoice could not be approved.";
     return [
       `Invoice ${invoice.number} is approved.`,
@@ -288,11 +309,9 @@ async function approveQuote(traderId: string, number: string, origin: string): P
     })),
     quote.depositPercent,
   );
-  const pay = await createGbpPaymentLink({
-    name: `Deposit for quote ${quote.number}`,
-    amountPence: totals.deposit,
-    metadata: { quoteId: quote.id },
-  });
+  const sandbox = isSandboxTrader({ slug: quote.trader.slug, email: quote.trader.user.email });
+  const blocked = sendBlockReason({ emailVerifiedAt: quote.trader.user.emailVerifiedAt, sandbox });
+  if (blocked) return blocked;
   const now = new Date();
   await prisma.quote.update({
     where: { id: quote.id },
@@ -301,13 +320,11 @@ async function approveQuote(traderId: string, number: string, origin: string): P
       approvedAt: now,
       sentAt: now,
       reviewToken: quote.reviewToken ?? newToken(),
-      stripePaymentLinkId: pay.id,
-      stripePaymentUrl: pay.url,
     },
   });
   const released = deliveryForCustomer(next, quote.publicToken);
   const customerUrl = `${origin}${released.path}`;
-  const note = paymentNote(totals.deposit > 0 ? pay.url : null);
+  const note = paymentNote(totals.deposit > 0 ? quote.stripePaymentUrl : null);
   const email = customerEmail(quote.customerContact);
   let detail = "Approved. No email address on the quote, so the customer was not emailed.";
   if (email) {
@@ -316,6 +333,7 @@ async function approveQuote(traderId: string, number: string, origin: string): P
       to: email,
       subject: `Quote ${quote.number} from ${quote.trader.businessName}`,
       text: [`${quote.trader.businessName} has sent you quote ${quote.number}.`, "", customerUrl, note].join("\n"),
+      sandbox,
     });
     detail = result.stubbed
       ? "Approved. The customer link is live. Email was logged, not sent (no SMTP configured)."

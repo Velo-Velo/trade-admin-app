@@ -17,6 +17,7 @@ const PROTECTED = [
   "/price-book",
   "/checklist",
   "/business",
+  "/billing",
   "/account",
   "/onboarding",
 ];

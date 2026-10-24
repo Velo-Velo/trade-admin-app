@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, hashToken, newToken } from "@/lib/auth";
+import { enforceFeature, enforceVerified } from "@/server/guards";
 import { parseInvoiceText } from "@/lib/invoices/parse";
 import { parsePaymentSettings } from "@/lib/invoices/settings";
 import { approveInvoice, createDraftInvoice, markInvoicePaid } from "@/lib/invoices/store";
@@ -16,8 +17,10 @@ function requireTrader() {
 }
 
 export async function createInvoiceFromText(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
+  enforceFeature(user, "invoices", "/invoices");
+  const trader = user.trader;
   const parsed = parseInvoiceText(String(formData.get("text") || ""));
   if (!parsed.ok) redirectWith("/invoices", "error", parsed.error);
   const invoice = await createDraftInvoice({ traderId: trader.id, parsed: parsed.data, source: "dashboard" });
@@ -25,9 +28,12 @@ export async function createInvoiceFromText(formData: FormData) {
 }
 
 export async function approveInvoiceAction(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
   const id = String(formData.get("invoiceId") || "");
+  enforceFeature(user, "invoices", `/invoices/${id}`);
+  enforceVerified(user, `/invoices/${id}`);
+  const trader = user.trader;
   const origin = await requestOrigin();
   try {
     const approved = await approveInvoice(id, trader.id, origin);
@@ -120,8 +126,10 @@ export async function updatePaymentSettings(formData: FormData) {
 }
 
 export async function createWhatsAppLink() {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
+  enforceFeature(user, "whatsapp", "/business");
+  const trader = user.trader;
   const bytes = randomBytes(6);
   const code = [...bytes].map((byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join("");
   await prisma.trader.update({

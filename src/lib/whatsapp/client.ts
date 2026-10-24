@@ -21,7 +21,11 @@ async function graph(path: string, init: RequestInit): Promise<Response> {
   });
 }
 
-export async function sendWhatsAppText(to: string, body: string): Promise<void> {
+export async function sendWhatsAppText(to: string, body: string, options?: { sandbox?: boolean }): Promise<void> {
+  if (options?.sandbox) {
+    console.info(`[whatsapp sandbox] not sent to ${to}`);
+    return;
+  }
   const { phoneId } = credentials();
   const response = await graph(`/${phoneId}/messages`, {
     method: "POST",
@@ -44,7 +48,12 @@ export async function sendWhatsAppDocument(
   pdf: Buffer,
   filename: string,
   caption: string,
+  options?: { sandbox?: boolean },
 ): Promise<void> {
+  if (options?.sandbox) {
+    console.info(`[whatsapp sandbox] document not sent to ${to}`);
+    return;
+  }
   const { token, phoneId } = credentials();
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
