@@ -158,7 +158,7 @@ This app is set up for [Render](https://render.com), not Vercel. `render.yaml` d
 3. Connect the GitHub account and select this repository. Render reads `render.yaml`.
 4. Set the web service environment as follows. The blueprint fills the generated values. You only need to change `DEMO_MODE` if you want the sample business.
    - `DEMO_MODE` — set to `true` to click around the sample trader. The blueprint default is `false`. Change it on the blueprint review screen, or later under **Environment**, then use **Manual Deploy** so the new value is picked up at start.
-   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
+   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
    - Leave the blueprint values: `DATABASE_URL` (from Postgres), `SESSION_SECRET` (generated), `APP_URL` (from `RENDER_EXTERNAL_URL`), `CRON_SECRET` (generated), `SHOW_DEV_LINKS` = `false`, `NODE_ENV` = `production`, `NODE_VERSION` = `22`, `OPENAI_MODEL` = `gpt-4o-mini`, `SMTP_PORT` = `587`.
 5. Apply the blueprint. You do not need a Render shell. The start command is `npm start`, which runs `prisma migrate deploy`, loads the job templates, and resets the sample trader when `DEMO_MODE` is `true`.
 6. Open the `onrender.com` address and click **Try the demo**. That works with `DEMO_MODE` left at `false`. It does not reset real traders.
@@ -189,6 +189,7 @@ Every variable is listed in `.env.example`.
 | `STRIPE_SECRET_KEY` | No | Stripe secret key. Test key first (`sk_test_...`). Hides card buttons when empty. |
 | `STRIPE_WEBHOOK_SECRET` | No | Signing secret for the Your account event destination on `POST /api/stripe/webhook`. |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | No | Signing secret for the Connected accounts destination. Same URL. Needed so deposit and invoice payments are marked paid. |
+| `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET` | No | Signing secret for the thin-event destination that updates Connect status. Same URL. Events are on Your account. |
 | `STRIPE_PRICE_TRADE` | No | Stripe price id for Trade, £11.99 a month. |
 | `STRIPE_PRICE_SPLITSTICK` | No | Stripe price id for the Splitstick bundle, £16.99 a month. |
 | `STRIPE_PLATFORM_FEE_BPS` | No | Platform fee in basis points. `0` leaves the full card payment with the trader. |
@@ -254,18 +255,20 @@ Updating `lastRemindedAt` happens after a successful log or send, so a failed se
 
 ## Card payments and plans
 
-Deposits and invoice payments use Stripe Checkout on the trader's connected Express account (United Kingdom). The charge is a direct charge, so the money goes to the trader. `STRIPE_PLATFORM_FEE_BPS` is an optional fee in basis points and defaults to `0`. Checkout asks for card, which is also how Apple Pay and Google Pay appear. Bacs is not requested.
+Deposits and invoice payments use Stripe Checkout on the trader's connected account (United Kingdom). The account is created with Accounts v2: an Express dashboard, and the merchant configuration so the trader can take card payments. The charge is a direct charge, so the money goes to the trader. Checkout still sends the account id on the `stripeAccount` header. `STRIPE_PLATFORM_FEE_BPS` is an optional fee in basis points and defaults to `0`. Checkout asks for card, which is also how Apple Pay and Google Pay appear. Bacs is not requested.
 
 The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
 
 Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, and RAMS. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
 
-The webhook is `POST /api/stripe/webhook`. Create two Stripe event destinations and give both that same URL. Each destination has its own signing secret.
+The webhook is `POST /api/stripe/webhook`. Create the event destinations below and give each that same URL. Each destination has its own signing secret.
 
 - **Your account** sends plan changes. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Put that signing secret in `STRIPE_WEBHOOK_SECRET`.
 - **Connected accounts** sends deposit and invoice payments, because those are direct charges on the trader's account. Event: `checkout.session.completed`. Put that signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 The app checks the signature against either secret. A connected-account event includes the trader's account id. The payment is then matched by the checkout metadata or the payment link.
+
+Connect status uses a third destination on that same URL. In Stripe, create an event destination for **Your account**, choose the **thin** payload, and send `v2.core.account[configuration.merchant].capability_status_updated`, `v2.core.account[configuration.merchant].updated`, `v2.core.account[requirements].updated` and `v2.core.account.updated`. Put that signing secret in `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`. Those events are thin, so they are not covered by the two snapshot secrets above. Returning from Stripe still refreshes the status if this secret is empty.
 
 The exact clicks in Stripe and Render are in `LAUNCH_CHECKLIST.md`.
 

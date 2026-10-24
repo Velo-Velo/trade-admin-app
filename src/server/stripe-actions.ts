@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { billingConfigured, priceIdForPlan } from "@/lib/billing/plans";
 import { ensureExpressAccount, onboardingUrl } from "@/lib/payments/connect";
+import { publicStripeReason } from "@/lib/payments/stripe-reason";
 import { isSandboxTrader } from "@/lib/sandbox";
 import { requestOrigin } from "@/lib/origin";
 import { isNextRedirect, redirectWith } from "@/lib/redirects";
@@ -28,6 +29,7 @@ export async function startStripeConnect() {
     const accountId = await ensureExpressAccount({
       traderId: trader.id,
       email: user.email,
+      businessName: trader.businessName,
       existingAccountId: trader.stripeAccountId,
     });
     if (!accountId) {
@@ -37,13 +39,14 @@ export async function startStripeConnect() {
       accountId,
       refreshUrl: `${origin}/business?stripe=refresh`,
       returnUrl: `${origin}/business?stripe=return`,
+      purpose: trader.stripeChargesEnabled ? "update" : "onboarding",
     });
     if (!url) redirectWith("/business", "error", "Stripe could not open the Connect page. No payment is taken.");
     redirect(url);
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     console.error("[stripe connect]", error);
-    redirectWith("/business", "error", "Stripe could not open the Connect page. No payment is taken.");
+    redirectWith("/business", "error", publicStripeReason(error));
   }
 }
 
@@ -54,13 +57,20 @@ export async function refreshStripeConnect() {
     redirect("/business");
   }
   const origin = await requestOrigin();
-  const url = await onboardingUrl({
-    accountId,
-    refreshUrl: `${origin}/business?stripe=refresh`,
-    returnUrl: `${origin}/business?stripe=return`,
-  });
-  if (!url) redirectWith("/business", "error", "Stripe could not open the Connect page.");
-  redirect(url);
+  try {
+    const url = await onboardingUrl({
+      accountId,
+      refreshUrl: `${origin}/business?stripe=refresh`,
+      returnUrl: `${origin}/business?stripe=return`,
+      purpose: "onboarding",
+    });
+    if (!url) redirectWith("/business", "error", "Stripe could not open the Connect page. No payment is taken.");
+    redirect(url);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    console.error("[stripe connect]", error);
+    redirectWith("/business", "error", publicStripeReason(error));
+  }
 }
 
 export async function startPlanCheckout(formData: FormData) {

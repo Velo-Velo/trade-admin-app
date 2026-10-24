@@ -3,19 +3,26 @@ import type Stripe from "stripe";
 import { planAfterSubscription } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { paidInvoicePatch } from "@/lib/payments/checkout";
-import { subscriptionPriceId } from "@/lib/payments/connect";
+import { subscriptionPriceId, syncConnectAccountByStripeId } from "@/lib/payments/connect";
+import { accountIdFromThinNotification, isThinEventPayload, stripeV2AccountWebhookSecret } from "@/lib/payments/connect-account";
 import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
 import { stripeClient } from "@/lib/stripe";
 
 export async function POST(request: Request) {
   const stripe = stripeClient();
-  const secrets = stripeWebhookSecrets(process.env);
-  if (!stripe || secrets.length === 0) {
-    return NextResponse.json({ error: "Stripe is not configured" }, { status: 501 });
-  }
   const signature = request.headers.get("stripe-signature");
   if (!signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   const body = await request.text();
+  if (!stripe) return NextResponse.json({ error: "Stripe is not configured" }, { status: 501 });
+
+  if (isThinEventPayload(body)) {
+    return recordThinAccountEvent(stripe, body, signature);
+  }
+
+  const secrets = stripeWebhookSecrets(process.env);
+  if (secrets.length === 0) {
+    return NextResponse.json({ error: "Stripe is not configured" }, { status: 501 });
+  }
   let event: Stripe.Event;
   try {
     event = constructStripeEvent(stripe, body, signature, secrets);
@@ -31,12 +38,34 @@ export async function POST(request: Request) {
       await recordStripePayment(event.data.object as Stripe.Checkout.Session);
     } else if (kind === "subscription") {
       await recordSubscription(event.data.object as Stripe.Subscription);
+    } else if (kind === "connect_account") {
+      const account = event.data.object as { id?: string };
+      if (account.id) await syncConnectAccountByStripeId(account.id);
     }
   } catch (error) {
     console.error("[stripe webhook]", error);
     return NextResponse.json({ error: "Could not record the Stripe event" }, { status: 500 });
   }
 
+  return NextResponse.json({ received: true });
+}
+
+async function recordThinAccountEvent(stripe: NonNullable<ReturnType<typeof stripeClient>>, body: string, signature: string) {
+  const secret = stripeV2AccountWebhookSecret(process.env);
+  if (!secret) return NextResponse.json({ error: "Stripe is not configured" }, { status: 501 });
+  let accountId: string | null;
+  try {
+    accountId = accountIdFromThinNotification(stripe.parseEventNotification(body, signature, secret));
+  } catch {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  }
+  if (!accountId) return NextResponse.json({ received: true });
+  try {
+    await syncConnectAccountByStripeId(accountId);
+  } catch (error) {
+    console.error("[stripe account event]", error);
+    return NextResponse.json({ error: "Could not record the Stripe event" }, { status: 500 });
+  }
   return NextResponse.json({ received: true });
 }
 

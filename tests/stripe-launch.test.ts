@@ -3,6 +3,14 @@ import Stripe from "stripe";
 import { planAfterSubscription, planForPriceId, featureAllowed, priceIdForPlan, billingConfigured } from "@/lib/billing/plans";
 import { monitorTarget } from "@/lib/monitor";
 import { connectedCheckoutArgs, paidInvoicePatch } from "@/lib/payments/checkout";
+import {
+  accountIdFromThinNotification,
+  accountLinkParams,
+  connectFlagsFromV2Account,
+  expressAccountCreateParams,
+  isThinEventPayload,
+} from "@/lib/payments/connect-account";
+import { publicStripeReason } from "@/lib/payments/stripe-reason";
 import { cardButtonVisible, connectStatusLabel } from "@/lib/payments/connect-status";
 import { platformFeePence } from "@/lib/payments/fee";
 import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
@@ -42,6 +50,21 @@ describe("connected checkout", () => {
     expect(args.params.payment_method_types).toEqual(["card"]);
     expect(args.params.payment_intent_data).toBeUndefined();
     expect(JSON.stringify(args.params)).not.toContain("bacs");
+  });
+
+  it("sends a v2 account id on the stripeAccount header for a direct charge", () => {
+    const args = connectedCheckoutArgs({
+      name: "Deposit",
+      description: "Job",
+      amountPence: 3000,
+      metadata: { quoteId: "q" },
+      customerEmail: null,
+      successUrl: "https://example.test/ok",
+      cancelUrl: "https://example.test/cancel",
+      stripeAccountId: "acct_v2_trader",
+      feePence: 0,
+    });
+    expect(args.options).toEqual({ stripeAccount: "acct_v2_trader" });
   });
 
   it("adds an application fee only when one is due", () => {
@@ -145,6 +168,84 @@ describe("stripe webhook signatures", () => {
   it("rejects a signature from neither secret", () => {
     expect(() => constructStripeEvent(stripe, connectPayload, header(connectPayload, "whsec_other"), secrets)).toThrow();
     expect(stripeWebhookSecrets({ STRIPE_WEBHOOK_SECRET: "  ", STRIPE_CONNECT_WEBHOOK_SECRET: "" })).toEqual([]);
+  });
+});
+
+describe("accounts v2", () => {
+  it("creates a UK Express merchant that can take card payments directly", () => {
+    const params = expressAccountCreateParams({
+      email: "trader@example.com",
+      traderId: "trader_1",
+      businessName: "Harbour Heating",
+    });
+    expect(params.dashboard).toBe("express");
+    expect(params.contact_email).toBe("trader@example.com");
+    expect(params.identity).toEqual({ country: "gb" });
+    expect(params.configuration?.merchant?.capabilities?.card_payments).toEqual({ requested: true });
+    expect(params.defaults?.responsibilities).toEqual({ fees_collector: "stripe", losses_collector: "stripe" });
+    expect(params.metadata).toEqual({ traderId: "trader_1" });
+    expect(JSON.stringify(params)).not.toContain("\"type\":\"express\"");
+    const link = accountLinkParams({
+      accountId: "acct_v2",
+      refreshUrl: "https://example.test/business?stripe=refresh",
+      returnUrl: "https://example.test/business?stripe=return",
+      purpose: "onboarding",
+    });
+    expect(link.use_case.type).toBe("account_onboarding");
+    expect(link.use_case.account_onboarding?.refresh_url).toContain("stripe=refresh");
+    expect(link.use_case.account_onboarding?.return_url).toContain("stripe=return");
+  });
+
+  it("maps card, payout and details status from a v2 account", () => {
+    const due = connectFlagsFromV2Account({
+      configuration: { merchant: { capabilities: { card_payments: { status: "pending" }, stripe_balance: { payouts: { status: "pending" } } } } },
+      requirements: {
+        summary: { minimum_deadline: { status: "currently_due" } },
+        entries: [{ awaiting_action_from: "user", minimum_deadline: { status: "currently_due" } }],
+      },
+    });
+    expect(due).toEqual({ chargesEnabled: false, detailsSubmitted: false, payoutsEnabled: false });
+
+    const reviewing = connectFlagsFromV2Account({
+      configuration: { merchant: { capabilities: { card_payments: { status: "pending" }, stripe_balance: { payouts: { status: "pending" } } } } },
+      requirements: { entries: [], summary: { minimum_deadline: { status: "eventually_due" } } },
+    });
+    expect(reviewing).toEqual({ chargesEnabled: false, detailsSubmitted: true, payoutsEnabled: false });
+
+    const ready = connectFlagsFromV2Account({
+      configuration: { merchant: { capabilities: { card_payments: { status: "active" }, stripe_balance: { payouts: { status: "active" } } } } },
+      requirements: { entries: [] },
+    });
+    expect(ready).toEqual({ chargesEnabled: true, detailsSubmitted: true, payoutsEnabled: true });
+  });
+
+  it("accepts a thin account event and rejects a bad signature", () => {
+    const stripe = new Stripe("sk_test_x");
+    const secret = "whsec_v2_accounts";
+    const payload = JSON.stringify({
+      id: "evt_thin",
+      object: "v2.core.event",
+      type: "v2.core.account[configuration.merchant].capability_status_updated",
+      created: "2026-10-25T00:00:00.000Z",
+      livemode: false,
+      related_object: { id: "acct_v2", type: "v2.core.account", url: "/v2/core/accounts/acct_v2" },
+    });
+    const header = stripe.webhooks.generateTestHeaderString({ payload, secret });
+    expect(isThinEventPayload(payload)).toBe(true);
+    const notification = stripe.parseEventNotification(payload, header, secret);
+    expect(accountIdFromThinNotification(notification)).toBe("acct_v2");
+    expect(() => stripe.parseEventNotification(payload, header, "whsec_other")).toThrow();
+    expect(accountIdFromThinNotification({ type: "v2.core.event_destination.ping", related_object: { id: "acct_v2" } })).toBeNull();
+    expect(stripeEventKind({ type: "account.updated", data: { object: { id: "acct_v2" } } } as Stripe.Event)).toBe("connect_account");
+  });
+
+  it("shows a short Stripe reason and removes secrets", () => {
+    const error = new Error("Stripe no longer recommends Accounts v1. Key sk_test_abc123 whsec_secretvalue");
+    const reason = publicStripeReason(error);
+    expect(reason).toContain("Stripe no longer recommends Accounts v1");
+    expect(reason).not.toContain("sk_test_abc123");
+    expect(reason).not.toContain("whsec_secretvalue");
+    expect(publicStripeReason(new Error(""))).toBe("Stripe could not open the Connect page. No payment was taken.");
   });
 });
 
