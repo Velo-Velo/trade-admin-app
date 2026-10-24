@@ -68,14 +68,27 @@ enum JobPhotoKind {
   AFTER
 }
 
+enum PlanTier {
+  FREE
+  TRADE
+  SPLITSTICK
+}
+
+enum MagicPurpose {
+  SIGN_IN
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  passwordHash String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  trader       Trader?
-  sessions     Session[]
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  trader          Trader?
+  sessions        Session[]
 }
 
 model Session {
@@ -90,12 +103,13 @@ model Session {
 }
 
 model MagicLink {
-  id        String    @id @default(cuid())
+  id        String       @id @default(cuid())
   email     String
-  tokenHash String    @unique
+  tokenHash String       @unique
+  purpose   MagicPurpose @default(SIGN_IN)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime     @default(now())
 
   @@index([email])
 }
@@ -130,8 +144,16 @@ model Trader {
   quoteChaseSecondNudge Boolean  @default(true)
   autoSendQuoteChasers  Boolean  @default(false)
   serviceRemindWeeks    Int      @default(4)
-  siteTheme             String   @default("yard")
-  createdAt             DateTime @default(now())
+  siteTheme               String   @default("yard")
+  plan                    PlanTier @default(FREE)
+  stripeAccountId         String?  @unique
+  stripeChargesEnabled    Boolean  @default(false)
+  stripeDetailsSubmitted  Boolean  @default(false)
+  stripePayoutsEnabled    Boolean  @default(false)
+  stripeCustomerId        String?  @unique
+  subscriptionStatus      String   @default("")
+  subscriptionPriceId     String   @default("")
+  createdAt               DateTime @default(now())
   updatedAt             DateTime @updatedAt
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   enquiries             Enquiry[]

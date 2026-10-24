@@ -1,6 +1,7 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth";
+import { enforceFeature } from "@/server/guards";
 import { addMonths } from "@/lib/chasers/plan";
 import { customerSearchText, normalisePhone } from "@/lib/customers/match";
 import { findOrCreateCustomer } from "@/lib/customers/store";
@@ -16,8 +17,10 @@ async function requireTrader() {
 }
 
 export async function createJob(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
+  enforceFeature(user, "manual_jobs", "/jobs");
+  const trader = user.trader;
   const name = String(formData.get("name") || "").trim();
   const title = String(formData.get("title") || "").trim();
   const contact = String(formData.get("contact") || "").trim();
@@ -83,8 +86,10 @@ export async function moveJob(formData: FormData) {
 }
 
 export async function updateJobService(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
+  enforceFeature(user, "chasers", "/jobs");
+  const trader = user.trader;
   const id = String(formData.get("jobId") || "");
   const job = await prisma.job.findFirst({ where: { id, traderId: trader.id } });
   if (!job) redirectWith("/jobs", "error", "That job could not be found.");
@@ -130,8 +135,10 @@ export async function updateJobService(formData: FormData) {
 }
 
 export async function linkJobInvoice(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
+  enforceFeature(user, "invoices", "/jobs");
+  const trader = user.trader;
   const id = String(formData.get("jobId") || "");
   const invoiceId = String(formData.get("invoiceId") || "");
   const job = await prisma.job.findFirst({ where: { id, traderId: trader.id } });
@@ -155,9 +162,11 @@ export async function linkJobInvoice(formData: FormData) {
 }
 
 export async function uploadJobPhotos(formData: FormData) {
-  const trader = await requireTrader();
-  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const user = await getCurrentUser();
+  if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
   const id = String(formData.get("jobId") || "");
+  enforceFeature(user, "photos", `/jobs/${id}`);
+  const trader = user.trader;
   const kind = formData.get("kind") === "AFTER" ? "AFTER" : "BEFORE";
   const job = await prisma.job.findFirst({ where: { id, traderId: trader.id } });
   if (!job) redirectWith("/jobs", "error", "That job could not be found.");

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
+import { planAfterSubscription } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
+import { paidInvoicePatch } from "@/lib/payments/checkout";
+import { subscriptionPriceId } from "@/lib/payments/connect";
+import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
 import { stripeClient } from "@/lib/stripe";
 
 export async function POST(request: Request) {
   const stripe = stripeClient();
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!stripe || !secret) {
+  const secrets = stripeWebhookSecrets(process.env);
+  if (!stripe || secrets.length === 0) {
     return NextResponse.json({ error: "Stripe is not configured" }, { status: 501 });
   }
   const signature = request.headers.get("stripe-signature");
@@ -14,24 +18,71 @@ export async function POST(request: Request) {
   const body = await request.text();
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, secret);
+    event = constructStripeEvent(stripe, body, signature, secrets);
   } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    if (session.payment_status === "paid") {
-      try {
-        await recordStripePayment(session);
-      } catch (error) {
-        console.error("[stripe webhook]", error);
-        return NextResponse.json({ error: "Could not record payment" }, { status: 500 });
-      }
+  try {
+    const kind = stripeEventKind(event);
+    if (kind === "subscription_checkout") {
+      await recordSubscriptionCheckout(stripe, event.data.object as Stripe.Checkout.Session);
+    } else if (kind === "connected_payment" || kind === "platform_payment") {
+      await recordStripePayment(event.data.object as Stripe.Checkout.Session);
+    } else if (kind === "subscription") {
+      await recordSubscription(event.data.object as Stripe.Subscription);
     }
+  } catch (error) {
+    console.error("[stripe webhook]", error);
+    return NextResponse.json({ error: "Could not record the Stripe event" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
+}
+
+async function recordSubscriptionCheckout(stripe: Stripe, session: Stripe.Checkout.Session) {
+  const customerId = typeof session.customer === "string" ? session.customer : null;
+  const traderId = session.metadata?.traderId || null;
+  let status = "active";
+  let priceId: string | null = null;
+  if (typeof session.subscription === "string") {
+    const subscription = await stripe.subscriptions.retrieve(session.subscription);
+    status = subscription.status;
+    priceId = subscriptionPriceId(subscription);
+  }
+  await savePlan({ traderId, customerId, status, priceId });
+}
+
+async function recordSubscription(subscription: Stripe.Subscription) {
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : null;
+  await savePlan({
+    traderId: subscription.metadata?.traderId || null,
+    customerId,
+    status: subscription.status,
+    priceId: subscriptionPriceId(subscription),
+  });
+}
+
+async function savePlan(input: {
+  traderId: string | null;
+  customerId: string | null;
+  status: string;
+  priceId: string | null;
+}) {
+  const next = planAfterSubscription({ status: input.status, priceId: input.priceId });
+  const data = {
+    plan: next.plan,
+    subscriptionStatus: next.status,
+    subscriptionPriceId: next.priceId,
+    ...(input.customerId ? { stripeCustomerId: input.customerId } : {}),
+  };
+  if (input.traderId) {
+    await prisma.trader.updateMany({ where: { id: input.traderId }, data });
+    return;
+  }
+  if (input.customerId) {
+    await prisma.trader.updateMany({ where: { stripeCustomerId: input.customerId }, data });
+  }
 }
 
 async function recordStripePayment(session: Stripe.Checkout.Session) {
@@ -42,11 +93,9 @@ async function recordStripePayment(session: Stripe.Checkout.Session) {
     const invoice = await prisma.invoice.findFirst({
       where: invoiceId ? { id: invoiceId } : { stripePaymentLinkId: paymentLinkId ?? "" },
     });
-    if (invoice && !invoice.paidAt && invoice.status !== "DRAFT") {
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: "PAID", paidAt: now, jobCompletedAt: invoice.jobCompletedAt ?? now },
-      });
+    const patch = invoice ? paidInvoicePatch(invoice, now) : null;
+    if (invoice && patch) {
+      await prisma.invoice.update({ where: { id: invoice.id }, data: patch });
       await prisma.invoiceEvent.create({
         data: {
           invoiceId: invoice.id,
@@ -57,6 +106,7 @@ async function recordStripePayment(session: Stripe.Checkout.Session) {
       });
       return;
     }
+    if (invoice) return;
   }
 
   const quoteId = session.metadata?.quoteId;

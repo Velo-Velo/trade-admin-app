@@ -5,8 +5,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { deliver } from "@/lib/channels";
 import { customerEmail, parseQuantity, poundsToPence, quoteTotals } from "@/lib/format";
 import { newToken } from "@/lib/auth";
-import { createGbpPaymentLink } from "@/lib/payments/link";
 import { paymentNote } from "@/lib/whatsapp/plan";
+import { enforceVerified, traderSandbox } from "@/server/guards";
 import { requestOrigin } from "@/lib/origin";
 import { approveDraft, deliveryForCustomer, validateQuoteLines, type QuoteLineInput } from "@/lib/quotes/approval";
 import { coolingOffFor } from "@/lib/quotes/cooling-off";
@@ -70,6 +70,7 @@ export async function saveQuoteAction(formData: FormData) {
   if (problem) redirectWith(`/quotes/${quote.id}`, "error", problem);
 
   const approving = intent === "approve";
+  if (approving) enforceVerified(user, `/quotes/${quote.id}`);
   const nextStatus = approving ? approveDraft(quote.status) : quote.status;
   const now = new Date();
 
@@ -120,21 +121,13 @@ export async function saveQuoteAction(formData: FormData) {
     lines.map((line) => ({ kind: line.kind, quantity: line.quantity, unitPricePence: line.unitPricePence })),
     depositPercent,
   );
-  const pay = await createGbpPaymentLink({
-    name: `Deposit for quote ${quote.number}`,
-    amountPence: totals.deposit,
-    metadata: { quoteId: quote.id },
-  });
   await prisma.quote.update({
     where: { id: quote.id },
-    data: {
-      stripePaymentLinkId: pay.id,
-      stripePaymentUrl: pay.url,
-      reviewToken: quote.reviewToken ?? newToken(),
-    },
+    data: { reviewToken: quote.reviewToken ?? newToken() },
   });
-  const note = paymentNote(totals.deposit > 0 ? pay.url : null);
+  const note = paymentNote(totals.deposit > 0 ? quote.stripePaymentUrl : null);
   const email = customerEmail(quote.customerContact);
+  const sandbox = traderSandbox(user);
   let detail: string;
   if (!email) {
     detail = "Approved. No email address on the enquiry, so nothing was emailed. Share the link yourself. WhatsApp is not connected.";
@@ -154,6 +147,7 @@ export async function saveQuoteAction(formData: FormData) {
           "",
           `This was sent because you asked ${user.trader.businessName} about a job.`,
         ].join("\n"),
+        sandbox,
       });
       detail = result.stubbed
         ? "Approved. The customer link is live. Email was logged, not sent (no SMTP configured)."

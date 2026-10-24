@@ -18,17 +18,18 @@ export async function deliverCustomerChase(input: {
   customerEmail: string;
   subject: string;
   text: string;
+  sandbox?: boolean;
 }): Promise<ChaseDelivery> {
   const email = input.customerEmail || customerEmail(input.contact) || "";
   const phone = normalisePhone(input.customerPhone || (email ? "" : input.contact));
   const notes: string[] = [];
 
   if (email) {
-    const result = await sendEmail({ to: email, subject: input.subject, text: input.text });
+    const result = await sendEmail({ to: email, subject: input.subject, text: input.text, sandbox: input.sandbox });
     notes.push(result.stubbed ? "Email logged, not sent (no SMTP)." : "Email sent.");
   }
 
-  if (phone && whatsappConfigured()) {
+  if (phone && whatsappConfigured() && !input.sandbox) {
     try {
       await sendWhatsAppText(phone, input.text);
       await prisma.whatsAppMessage.create({
@@ -39,7 +40,7 @@ export async function deliverCustomerChase(input: {
       console.error("[chase whatsapp]", error);
       notes.push("WhatsApp could not be sent.");
     }
-  } else if (demoModeEnabled() && input.traderWhatsapp) {
+  } else if ((input.sandbox || demoModeEnabled()) && input.traderWhatsapp) {
     const who = phone ? ` to +${phone}` : email ? ` for ${email}` : "";
     await prisma.whatsAppMessage.create({
       data: {

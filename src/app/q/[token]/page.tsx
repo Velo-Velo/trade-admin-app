@@ -9,6 +9,9 @@ import { prisma } from "@/lib/db";
 import { firstParam, formatDate, formatGBP, formatQuantity, quoteTotals, telHref } from "@/lib/format";
 import { isDemoSlug } from "@/lib/demo";
 import { resolvePublicQuoteView } from "@/lib/quotes/approval";
+import { billingConfigured } from "@/lib/billing/plans";
+import { cardButtonVisible } from "@/lib/payments/connect-status";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { stripeConfigured } from "@/lib/stripe";
 import { acceptQuote, declineQuote, startDeposit } from "@/server/customer-actions";
 
@@ -33,6 +36,14 @@ export default async function PublicQuotePage({
   const visible = resolvePublicQuoteView(quote);
   if (!visible || !quote) notFound();
 
+  const cardPay = cardButtonVisible({
+    stripeConfigured: stripeConfigured(),
+    sandbox: isSandboxTrader({ slug: visible.trader.slug }),
+    stripeAccountId: visible.trader.stripeAccountId,
+    stripeChargesEnabled: visible.trader.stripeChargesEnabled,
+    plan: visible.trader.plan,
+    billingOn: billingConfigured(),
+  });
   const totals = quoteTotals(
     visible.lines.map((line) => ({
       kind: line.kind,
@@ -129,15 +140,15 @@ export default async function PublicQuotePage({
               <p className="mt-3">Deposit paid on {formatDate(visible.depositPaidAt)}. Thank you.</p>
             ) : totals.deposit <= 0 ? (
               <p className="mt-3">No deposit is requested. {visible.trader.businessName} will be in touch.</p>
-            ) : visible.stripePaymentUrl ? (
-              <p className="mt-4">
-                <a className={buttonPrimary} href={visible.stripePaymentUrl}>Pay {formatGBP(totals.deposit)} deposit by card</a>
-              </p>
-            ) : stripeConfigured() ? (
+            ) : cardPay ? (
               <form action={startDeposit} className="mt-4">
                 <input type="hidden" name="token" value={token} />
                 <button className={buttonPrimary} type="submit">Pay {formatGBP(totals.deposit)} deposit by card</button>
               </form>
+            ) : visible.stripePaymentUrl && !isSandboxTrader({ slug: visible.trader.slug }) ? (
+              <p className="mt-4">
+                <a className={buttonPrimary} href={visible.stripePaymentUrl}>Pay {formatGBP(totals.deposit)} deposit by card</a>
+              </p>
             ) : (
               <p className="mt-3 text-sm leading-6">
                 Card payments are not switched on. No payment has been taken. {visible.trader.businessName} will arrange the {formatGBP(totals.deposit)} deposit with you.

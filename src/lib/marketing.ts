@@ -12,26 +12,27 @@ export const PLANS = [
     points: [
       "A one-page website with your name, trade and area",
       "A start-up checklist, with badges only if you choose to show them",
-      "Draft quotes by email. Nothing is sent until you approve",
+      "Enquiries, draft quotes, and the booked job when a customer accepts",
+      "Nothing is sent until you approve",
     ],
   },
   {
-    name: "Workshop",
+    name: "Trade",
     price: "£11.99",
     period: "a month",
     points: [
+      "Invoices, PDFs and payment reminders",
       "WhatsApp in, a draft quote or invoice out",
-      "Numbered invoice PDFs, bank details and card links",
-      "Payment reminders, quote follow-ups and service reminders",
-      "Job board, customer book and job photos",
+      "Job photos, quote follow-ups and service reminders",
+      "Card payments to your own Stripe account",
     ],
   },
   {
-    name: "With Splitstick",
-    price: "£14.99",
+    name: "Splitstick bundle",
+    price: "£16.99",
     period: "a month",
     points: [
-      "Everything in Workshop",
+      "Everything in Trade",
       "Last-paid prices from Splitstick receipts, when that connection is switched on",
       "The price book still waits for you. A receipt does not send a quote",
     ],
@@ -39,7 +40,7 @@ export const PLANS = [
 ] as const;
 
 export const PRICING_NOTE =
-  "Creating an account does not take a card. These are the prices. This build does not charge them yet.";
+  "Creating an account does not charge a card. You are charged only after Stripe Billing is switched on and you choose Trade or the Splitstick bundle.";
 
 export const FAQ = [
   {
@@ -60,6 +61,6 @@ export const FAQ = [
   },
   {
     q: "What is included before I pay?",
-    a: "The free account is the website, the checklist and quotes you approve. WhatsApp, invoices, the job board and Splitstick are on the paid prices above.",
+    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, and the booked job when a quote is accepted. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds receipt prices.",
   },
 ] as const;

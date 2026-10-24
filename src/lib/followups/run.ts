@@ -1,6 +1,8 @@
+import { billingConfigured, featureAllowed, sendBlockReason } from "../billing/plans";
 import { queueCustomerChases } from "../chasers/queue";
 import { prisma } from "../db";
 import { sendEmail } from "../email";
+import { isSandboxTrader } from "../sandbox";
 import { customerEmail } from "../format";
 import { chaserCopy, isInvoiceChaserDue } from "../invoices/chasers";
 import { isReviewDue, reviewCopy } from "../reviews/sequence";
@@ -28,9 +30,13 @@ export async function runFollowUps(now = new Date()): Promise<{
 
   const invoices = await prisma.invoice.findMany({
     where: { status: "SENT", paidAt: null, chaserEnabled: true },
+    include: { trader: { include: { user: true } } },
   });
   for (const invoice of invoices) {
     if (!isInvoiceChaserDue(invoice, now)) continue;
+    const sandbox = isSandboxTrader({ slug: invoice.trader.slug, email: invoice.trader.user.email });
+    if (!featureAllowed({ plan: invoice.trader.plan, feature: "invoices", sandbox, billingOn: billingConfigured() })) continue;
+    if (sendBlockReason({ emailVerifiedAt: invoice.trader.user.emailVerifiedAt, sandbox })) continue;
     invoicesDue += 1;
     const email = customerEmail(invoice.customerContact);
     const copy = chaserCopy({
@@ -56,7 +62,7 @@ export async function runFollowUps(now = new Date()): Promise<{
       continue;
     }
     try {
-      const result = await sendEmail({ to: email, subject: copy.subject, text: copy.text });
+      const result = await sendEmail({ to: email, subject: copy.subject, text: copy.text, sandbox });
       await prisma.invoice.update({
         where: { id: invoice.id },
         data: { chaserStage: invoice.chaserStage + 1, lastChasedAt: now },
@@ -77,7 +83,7 @@ export async function runFollowUps(now = new Date()): Promise<{
 
   const reviewInvoices = await prisma.invoice.findMany({
     where: { jobCompletedAt: { not: null }, reviewClickedAt: null, reviewChaserEnabled: true },
-    include: { trader: true },
+    include: { trader: { include: { user: true } } },
   });
   for (const invoice of reviewInvoices) {
     const email = customerEmail(invoice.customerContact);
@@ -95,6 +101,9 @@ export async function runFollowUps(now = new Date()): Promise<{
       now,
     );
     if (!due || !email) continue;
+    const sandbox = isSandboxTrader({ slug: invoice.trader.slug, email: invoice.trader.user.email });
+    if (!featureAllowed({ plan: invoice.trader.plan, feature: "invoices", sandbox, billingOn: billingConfigured() })) continue;
+    if (sendBlockReason({ emailVerifiedAt: invoice.trader.user.emailVerifiedAt, sandbox })) continue;
     reviewsDue += 1;
     const copy = reviewCopy({
       stage: invoice.reviewStage,
@@ -103,7 +112,7 @@ export async function runFollowUps(now = new Date()): Promise<{
       trackUrl: `${appUrl}/r/${invoice.reviewToken}`,
     });
     try {
-      const result = await sendEmail({ to: email, subject: copy.subject, text: copy.text });
+      const result = await sendEmail({ to: email, subject: copy.subject, text: copy.text, sandbox });
       await prisma.invoice.update({
         where: { id: invoice.id },
         data: { reviewStage: invoice.reviewStage + 1, lastReviewAt: now },
@@ -124,7 +133,7 @@ export async function runFollowUps(now = new Date()): Promise<{
 
   const reviewQuotes = await prisma.quote.findMany({
     where: { jobCompletedAt: { not: null }, reviewClickedAt: null, reviewChaserEnabled: true, reviewToken: { not: null } },
-    include: { trader: true },
+    include: { trader: { include: { user: true } } },
   });
   for (const quote of reviewQuotes) {
     const email = customerEmail(quote.customerContact);
@@ -142,6 +151,9 @@ export async function runFollowUps(now = new Date()): Promise<{
       now,
     );
     if (!due || !email || !quote.reviewToken) continue;
+    const sandbox = isSandboxTrader({ slug: quote.trader.slug, email: quote.trader.user.email });
+    if (!featureAllowed({ plan: quote.trader.plan, feature: "chasers", sandbox, billingOn: billingConfigured() })) continue;
+    if (sendBlockReason({ emailVerifiedAt: quote.trader.user.emailVerifiedAt, sandbox })) continue;
     reviewsDue += 1;
     const copy = reviewCopy({
       stage: quote.reviewStage,
@@ -150,7 +162,7 @@ export async function runFollowUps(now = new Date()): Promise<{
       trackUrl: `${appUrl}/r/${quote.reviewToken}`,
     });
     try {
-      await sendEmail({ to: email, subject: copy.subject, text: copy.text });
+      await sendEmail({ to: email, subject: copy.subject, text: copy.text, sandbox });
       await prisma.quote.update({
         where: { id: quote.id },
         data: { reviewStage: quote.reviewStage + 1, lastReviewAt: now },
