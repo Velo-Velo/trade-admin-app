@@ -107,6 +107,24 @@ On a job, add before and after photos from a phone camera or photo library. Pict
 
 With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon.
 
+## RAMS
+
+A RAMS is a risk assessment and method statement. Main contractors often ask for one before a job. Open **RAMS** and start from a job, a customer, a template, or a short description. Quotestick fills hazards, who might be harmed, a 5×5 likelihood × severity rating before and after controls, the method, PPE, COSHH substances, permits, and emergency, first aid and welfare wording from a checked library for the trade (plumbing and heating, electrical, roofing, carpentry and joinery, decorating, groundworks and landscaping, or general building). You edit every line. The library works with no OpenAI key. If `OPENAI_API_KEY` is set, the model may only choose hazards that are already in that library. It does not invent controls.
+
+The nearest A&E is suggested from the site postcode. Quotestick asks postcodes.io where the postcode is, then OpenStreetMap for hospitals tagged as emergency. NHS Service Search needs a subscription key, so it is not used. You get the nearest hospital and two alternatives, with the distance. It is a suggestion: check it is the right 24-hour A&E before work starts. If the lookup is down, type the hospital yourself.
+
+The competent person and each operative sign with a finger or a mouse. **Send for signatures on WhatsApp** gives each person a link that works with no login. The RAMS is fully signed only when everyone has signed the current version. If you edit the RAMS after that, every signature is cleared, the status goes back to awaiting signatures, and Quotestick offers to send the links again. Old signatures stay in an audit note. They are not treated as valid and they are not on the PDF.
+
+**Download PDF** uses the business name, text logo and colour from **Your page**, and draws the current signatures. **Save as template** keeps a copy that is not tied to a job. The RAMS stays on the job.
+
+Nothing is sent to the client or the main contractor until you forward the PDF yourself. The screen and the PDF say you must check that the RAMS suits the site. It is a drafting aid, not health and safety advice, and it does not report anything to the HSE.
+
+**Company documents** stores public liability, employers' liability, trade cards, training records and a health and safety policy, with expiry dates, and the PDF or photo of each one. Files are private. With `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` set (Cloudflare R2 uses these), the file is stored in that bucket. Leave them empty and the file stays in Postgres, which is what demo mode does. `S3_REGION` can stay `auto`. Those records and the RAMS you issue are shaped so a later accreditation pack could reuse them. This version does not fill in CHAS, SafeContractor, SMAS or Constructionline, and it does not say the business is accredited.
+
+On WhatsApp, send `RAMS for the outside tap` (or `RAMS roofing for the Smith job`). Quotestick matches a job you already have and replies with the draft and a PDF link. With Meta connected, it also sends the PDF back to you. The customer is not messaged.
+
+With `DEMO_MODE=true`, the sample trader has a draft RAMS on the outside-tap job, company documents (one training record due soon), and the same RAMS reply in the WhatsApp simulator. Open **RAMS**, then **Download PDF**. Or open **WhatsApp** and send `RAMS for the outside tap`.
+
 ## Quote follow-ups and service reminders
 
 A sent quote that has not been accepted or declined gets a polite follow-up after the number of days on **Your page** (3 by default). A second note can follow later (on by default, at 7 days when the first wait is shorter than that). Both land in **Follow-ups**. The trader taps Send. Nothing goes to the customer until then, unless **Auto-send quote chasers and service reminders** is switched on. That switch is off by default.
@@ -240,7 +258,7 @@ Deposits and invoice payments use Stripe Checkout on the trader's connected Expr
 
 The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
 
-Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes and the booked job from an accepted quote. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
+Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, and RAMS. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
 
 The webhook is `POST /api/stripe/webhook`. Create two Stripe event destinations and give both that same URL. Each destination has its own signing secret.
 

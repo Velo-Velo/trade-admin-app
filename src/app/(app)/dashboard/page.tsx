@@ -103,6 +103,15 @@ export default async function DashboardPage() {
         </div>
         <a href="/jobs" className="text-sm font-semibold">Open the board</a>
       </section>
+      <section className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-2xl">RAMS</h2>
+          <p className="mt-1 text-sm text-muted">
+            Draft a risk assessment and method statement from a job. You check it before anyone else sees it.
+          </p>
+        </div>
+        <a href="/rams" className="text-sm font-semibold">Open RAMS</a>
+      </section>
       <form action={createInvoiceFromText} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Quick invoice</h2>
         <p className="text-sm text-muted">One line creates a draft. The customer is not sent anything until you approve it.</p>

@@ -60,6 +60,10 @@ export const FAQ = [
     a: "No. A badge appears only when you mark an item done, enter a number, and choose to show it. Quotestick does not check Gas Safe, the water regulations or any other register.",
   },
   {
+    q: "Can I write a RAMS in the app?",
+    a: "Yes. Start from a job you already have. The draft comes from a checked hazard library for the trade. You edit it and download a PDF. You check that it suits the site. It is a drafting aid, not health and safety advice, and it is not sent until you send it.",
+  },
+  {
     q: "What is included before I pay?",
     a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, and the booked job when a quote is accepted. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds receipt prices.",
   },

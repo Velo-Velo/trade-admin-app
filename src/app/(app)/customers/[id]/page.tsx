@@ -28,6 +28,7 @@ export default async function CustomerPage({
     where: { id, traderId: user.trader.id },
     include: {
       jobs: { orderBy: { createdAt: "desc" }, include: { invoice: { select: { status: true } } } },
+      rams: { where: { isTemplate: false }, orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true } },
       quotes: { orderBy: { createdAt: "desc" } },
       invoices: { orderBy: { createdAt: "desc" } },
     },
@@ -89,6 +90,23 @@ export default async function CustomerPage({
             </a>
           );
         })}
+      </section>
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">RAMS</h2>
+        {customer.rams.length === 0 ? (
+          <p className="card text-sm text-muted">
+            No RAMS for this customer yet. <a href={`/rams/new?customer=${customer.id}`}>Start one</a>.
+          </p>
+        ) : (
+          customer.rams.map((rams) => (
+            <a key={rams.id} href={`/rams/${rams.id}`} className="card block no-underline">
+              <p className="font-semibold text-ink">
+                {rams.number} · {rams.title}
+              </p>
+              <p className="mt-1 text-sm text-muted">{rams.status === "SIGNED" || rams.status === "ISSUED" ? "Fully signed" : rams.status === "AWAITING_SIGNATURES" ? "Awaiting signatures" : "Draft"}</p>
+            </a>
+          ))
+        )}
       </section>
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Quotes</h2>

@@ -41,6 +41,24 @@ export function draftInvoiceReply(input: {
   };
 }
 
+export function draftRamsReply(input: { number: string; title: string; traderUrl: string; pdfUrl: string; signUrl?: string }): PlannedMessages {
+  return {
+    traderText: [
+      `Draft ${input.number} is ready: ${input.title}.`,
+      "It is filled from the checked hazard library. Check it suits this site before you send it on.",
+      "Nothing has been sent to the customer or the main contractor.",
+      `Open it: ${input.traderUrl}`,
+      `PDF: ${input.pdfUrl}`,
+      input.signUrl ? `Signing link, for the people doing the work: ${input.signUrl}` : "",
+      "It is a drafting aid, not health and safety advice.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    customerText: null,
+    customerPath: null,
+  };
+}
+
 /** Builds the customer message only after the approval gate has released the document. */
 export function approvedCustomerReply(input: {
   kind: "quote" | "invoice";

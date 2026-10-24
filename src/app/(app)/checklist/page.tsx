@@ -38,6 +38,7 @@ export default async function ChecklistPage({
           A reminder list for a UK sole trader, filtered for your trade. It is general information, not legal or tax advice.
           Tick an item when you have done it, add a number and an expiry date if it has one, and we can remind you before it runs out.
           A badge only appears on your page when you mark it done, enter a number, and choose to show it. Quotestick does not check the register.
+          Copies of insurance, cards and training you want to keep for later sit in <a href="/documents">company documents</a>.
         </p>
         <p className="mt-3 text-sm text-muted">
           {progress.done} of {progress.total} done

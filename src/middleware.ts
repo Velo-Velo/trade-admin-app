@@ -10,6 +10,8 @@ const PROTECTED = [
   "/follow-ups",
   "/invoices",
   "/jobs",
+  "/rams",
+  "/documents",
   "/customers",
   "/whatsapp",
   "/price-book",
