@@ -2,7 +2,13 @@ import type Stripe from "stripe";
 
 export const V2_ACCOUNT_INCLUDE = ["configuration.merchant", "requirements"] as const;
 
-/** Accounts v2 merchant in the UK, with the Express dashboard, for direct card charges. */
+/**
+ * UK merchant with the Express dashboard, for direct card charges.
+ * fees_collector and losses_collector are both application: the platform pays
+ * Stripe's processing fee and covers a negative balance. Express with Stripe
+ * as the fee or loss collector is a preview-only combination and Stripe
+ * rejects it on the generally available API.
+ */
 export function expressAccountCreateParams(input: {
   email: string;
   traderId: string;
@@ -25,8 +31,8 @@ export function expressAccountCreateParams(input: {
       currency: "gbp",
       locales: ["en-GB"],
       responsibilities: {
-        fees_collector: "stripe",
-        losses_collector: "stripe",
+        fees_collector: "application",
+        losses_collector: "application",
       },
     },
     metadata: { traderId: input.traderId },
