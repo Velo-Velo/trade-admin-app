@@ -107,6 +107,20 @@ On a job, add before and after photos from a phone camera or photo library. Pict
 
 With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon.
 
+## RAMS
+
+A RAMS is a risk assessment and method statement. Main contractors often ask for one before a job. Open **RAMS** and start from a job, a customer, a template, or a short description. Quotestick fills hazards, who might be harmed, a 5×5 likelihood × severity rating before and after controls, the method, PPE, COSHH substances, permits, and emergency, first aid and welfare wording from a checked library for the trade (plumbing and heating, electrical, roofing, carpentry and joinery, decorating, groundworks and landscaping, or general building). You edit every line. The library works with no OpenAI key. If `OPENAI_API_KEY` is set, the model may only choose hazards that are already in that library. It does not invent controls.
+
+The nearest A&E is blank until you name the hospital for that site. The competent person signs by typing their name. Operatives go on a briefing sheet. **Download PDF** uses the business name, text logo and colour from **Your page**. **Save as template** keeps a copy that is not tied to a job. The RAMS stays on the job.
+
+Nothing is sent to the client or the main contractor until you forward the PDF yourself. The screen and the PDF say you must check that the RAMS suits the site. It is a drafting aid, not health and safety advice, and it does not report anything to the HSE.
+
+**Company documents** stores public liability, employers' liability, trade cards, training records and a health and safety policy, with expiry dates. Those records and the RAMS you issue are shaped so a later accreditation pack could reuse them. This version does not fill in CHAS, SafeContractor, SMAS or Constructionline, and it does not say the business is accredited.
+
+On WhatsApp, send `RAMS for the outside tap` (or `RAMS roofing for the Smith job`). Quotestick matches a job you already have and replies with the draft and a PDF link. With Meta connected, it also sends the PDF back to you. The customer is not messaged.
+
+With `DEMO_MODE=true`, the sample trader has a draft RAMS on the outside-tap job, company documents (one training record due soon), and the same RAMS reply in the WhatsApp simulator. Open **RAMS**, then **Download PDF**. Or open **WhatsApp** and send `RAMS for the outside tap`.
+
 ## Quote follow-ups and service reminders
 
 A sent quote that has not been accepted or declined gets a polite follow-up after the number of days on **Your page** (3 by default). A second note can follow later (on by default, at 7 days when the first wait is shorter than that). Both land in **Follow-ups**. The trader taps Send. Nothing goes to the customer until then, unless **Auto-send quote chasers and service reminders** is switched on. That switch is off by default.

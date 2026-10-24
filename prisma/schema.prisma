@@ -131,6 +131,7 @@ model Trader {
   autoSendQuoteChasers  Boolean  @default(false)
   serviceRemindWeeks    Int      @default(4)
   siteTheme             String   @default("yard")
+  ramsSeq               Int      @default(0)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -143,6 +144,8 @@ model Trader {
   checklist             ChecklistItem[]
   whatsappMessages      WhatsAppMessage[]
   chases                CustomerChase[]
+  companyDocuments      CompanyDocument[]
+  rams                  Rams[]
 }
 
 model Enquiry {
@@ -411,6 +414,7 @@ model Customer {
   quotes     Quote[]
   invoices   Invoice[]
   jobs       Job[]
+  rams       Rams[]
 
   @@index([traderId])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -442,6 +446,7 @@ model Job {
   invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   photos     JobPhoto[]
   chases     CustomerChase[]
+  rams       Rams[]
 
   @@index([traderId, status])
   @@index([customerId])
@@ -467,6 +472,160 @@ model CustomerChase {
   @@unique([quoteId, stage])
   @@unique([jobId, stage])
   @@index([traderId, status])
+}
+
+/// Evidence kept once so a later accreditation pack can reuse it.
+/// This build does not fill CHAS, SafeContractor, SMAS or Constructionline forms.
+enum CompanyDocumentKind {
+  PUBLIC_LIABILITY
+  EMPLOYERS_LIABILITY
+  TRADE_CARD
+  TRAINING
+  SAFETY_POLICY
+  OTHER
+}
+
+enum RamsTrade {
+  PLUMBING_HEATING
+  ELECTRICAL
+  ROOFING
+  CARPENTRY_JOINERY
+  DECORATING
+  GROUNDWORKS_LANDSCAPING
+  GENERAL_BUILDING
+}
+
+enum RamsStatus {
+  DRAFT
+  ISSUED
+}
+
+model CompanyDocument {
+  id              String              @id @default(cuid())
+  traderId        String
+  kind            CompanyDocumentKind
+  title           String
+  issuer          String              @default("")
+  referenceNumber String              @default("")
+  issuedOn        DateTime?
+  expiresOn       DateTime?
+  notes           String              @default("")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  trader          Trader              @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@index([traderId, kind])
+  @@index([expiresOn])
+}
+
+model Rams {
+  id              String     @id @default(cuid())
+  traderId        String
+  jobId           String?
+  customerId      String?
+  number          String
+  title           String
+  status          RamsStatus @default(DRAFT)
+  trade           RamsTrade
+  isTemplate      Boolean    @default(false)
+  siteAddress     String     @default("")
+  sitePostcode    String     @default("")
+  clientName      String     @default("")
+  clientRole      String     @default("Client")
+  startOn         DateTime?
+  finishOn        DateTime?
+  scopeOfWork     String     @default("")
+  competentName   String     @default("")
+  competentRole   String     @default("")
+  competentPhone  String     @default("")
+  signedName      String     @default("")
+  signedOn        DateTime?
+  nearestHospital String     @default("")
+  emergencyNotes  String     @default("")
+  firstAidNotes   String     @default("")
+  welfareNotes    String     @default("")
+  ppe             String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  trader          Trader     @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  job             Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  customer        Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  hazards         RamsHazard[]
+  steps           RamsStep[]
+  substances      RamsSubstance[]
+  permits         RamsPermit[]
+  briefings       RamsBriefing[]
+
+  @@unique([traderId, number])
+  @@index([traderId, updatedAt])
+  @@index([jobId])
+  @@index([customerId])
+  @@index([traderId, isTemplate])
+}
+
+model RamsHazard {
+  id                 String @id @default(cuid())
+  ramsId             String
+  sortOrder          Int
+  libraryKey         String @default("")
+  activity           String @default("")
+  hazard             String
+  whoHarmed          String @default("")
+  likelihoodBefore   Int
+  severityBefore     Int
+  controls           String
+  likelihoodAfter    Int
+  severityAfter      Int
+  rams               Rams   @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+
+  @@index([ramsId])
+}
+
+model RamsStep {
+  id        String @id @default(cuid())
+  ramsId    String
+  sortOrder Int
+  detail    String
+  rams      Rams   @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+
+  @@index([ramsId])
+}
+
+model RamsSubstance {
+  id        String @id @default(cuid())
+  ramsId    String
+  sortOrder Int
+  name      String
+  hazard    String @default("")
+  controls  String @default("")
+  rams      Rams   @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+
+  @@index([ramsId])
+}
+
+model RamsPermit {
+  id        String  @id @default(cuid())
+  ramsId    String
+  sortOrder Int
+  name      String
+  required  Boolean @default(false)
+  detail    String  @default("")
+  rams      Rams    @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+
+  @@index([ramsId])
+}
+
+model RamsBriefing {
+  id            String    @id @default(cuid())
+  ramsId        String
+  sortOrder     Int
+  operativeName String
+  role          String    @default("")
+  briefedOn     DateTime?
+  signatureName String    @default("")
+  rams          Rams      @relation(fields: [ramsId], references: [id], onDelete: Cascade)
+
+  @@index([ramsId])
 }
 
 model JobPhoto {

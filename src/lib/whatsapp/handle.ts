@@ -10,7 +10,11 @@ import { createGbpPaymentLink } from "@/lib/payments/link";
 import { approveDraft, deliveryForCustomer } from "@/lib/quotes/approval";
 import { sendWhatsAppDocument, sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp/client";
 import { interpretInbound, normaliseWhatsAppNumber } from "@/lib/whatsapp/interpret";
-import { draftInvoiceReply, draftQuoteReply, paymentNote } from "@/lib/whatsapp/plan";
+import { ramsCompleterFromEnv } from "@/lib/rams/assist";
+import { matchJob, splitTradeQuery } from "@/lib/rams/match";
+import { renderRamsPdf } from "@/lib/rams/pdf";
+import { createLibraryRams, ramsInclude, toPdfInput } from "@/lib/rams/store";
+import { draftInvoiceReply, draftQuoteReply, draftRamsReply, paymentNote } from "@/lib/whatsapp/plan";
 
 function appOrigin(): string {
   return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -57,7 +61,14 @@ export async function handleInboundWhatsApp(input: {
   const replies: string[] = [];
 
   if (intent.type === "empty") {
-    replies.push(await reply(phone, linked?.id ?? null, "Send a job description, or an invoice such as: Invoice Mrs Jones, replaced tap, £80", input.viaMeta));
+    replies.push(
+      await reply(
+        phone,
+        linked?.id ?? null,
+        "Send a job description, an invoice such as: Invoice Mrs Jones, replaced tap, £80, or RAMS for a job you already have.",
+        input.viaMeta,
+      ),
+    );
     return replies;
   }
 
@@ -82,7 +93,7 @@ export async function handleInboundWhatsApp(input: {
       await reply(
         phone,
         trader.id,
-        `Linked to ${trader.businessName}. Send a job for a draft quote, or send: Invoice Mrs Jones, replaced tap, £80`,
+        `Linked to ${trader.businessName}. Send a job for a draft quote, an invoice, or RAMS for a job you already have.`,
         input.viaMeta,
       ),
     );
@@ -127,6 +138,83 @@ export async function handleInboundWhatsApp(input: {
         await sendWhatsAppDocument(phone, pdf, `${invoice.number}.pdf`, "Draft invoice. Not sent to the customer.");
       } catch (error) {
         console.error("[whatsapp pdf]", error);
+      }
+    }
+    return replies;
+  }
+
+  if (intent.type === "rams") {
+    const split = splitTradeQuery(intent.query);
+    const jobs = await prisma.job.findMany({
+      where: { traderId: linked.id },
+      orderBy: { updatedAt: "desc" },
+      take: 40,
+      include: { customer: { select: { name: true } } },
+    });
+    const match = matchJob(
+      jobs.map((job) => ({
+        id: job.id,
+        title: job.title,
+        customerName: job.customer.name,
+        address: job.address,
+        postcode: job.postcode,
+        status: job.status,
+        updatedAt: job.updatedAt,
+      })),
+      split.rest,
+    );
+    if (match.kind === "none") {
+      replies.push(
+        await reply(
+          phone,
+          linked.id,
+          "I could not match that to a job. Open RAMS in Quotestick, or send RAMS for and the job name.",
+          input.viaMeta,
+        ),
+      );
+      return replies;
+    }
+    if (match.kind === "many") {
+      const names = jobs.filter((job) => match.ids.includes(job.id)).map((job) => job.title);
+      replies.push(
+        await reply(
+          phone,
+          linked.id,
+          `That matches more than one job: ${names.join("; ")}. Send RAMS for and the job name.`,
+          input.viaMeta,
+        ),
+      );
+      return replies;
+    }
+    const created = await createLibraryRams(prisma, {
+      traderId: linked.id,
+      jobId: match.id,
+      trade: split.trade ?? undefined,
+      completer: ramsCompleterFromEnv(),
+    });
+    if (!created) {
+      replies.push(await reply(phone, linked.id, "That RAMS could not be started.", input.viaMeta));
+      return replies;
+    }
+    const planned = draftRamsReply({
+      number: created.number,
+      title: created.title,
+      traderUrl: `${origin}/rams/${created.id}`,
+      pdfUrl: `${origin}/api/rams/${created.id}/pdf`,
+    });
+    replies.push(await reply(phone, linked.id, planned.traderText, input.viaMeta));
+    if (input.viaMeta && whatsappConfigured()) {
+      try {
+        const rams = await prisma.rams.findFirst({
+          where: { id: created.id, traderId: linked.id },
+          include: ramsInclude,
+        });
+        if (rams) {
+          const pdf = await renderRamsPdf(toPdfInput(rams, linked));
+          await sendWhatsAppDocument(phone, pdf, `${created.number}.pdf`, "Draft RAMS. Check it before you send it on. Not health and safety advice.");
+        }
+      } catch (error) {
+        console.error("[whatsapp rams pdf]", error);
       }
     }
     return replies;

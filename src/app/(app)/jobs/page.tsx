@@ -41,7 +41,7 @@ export default async function JobsPage({
     include: {
       customer: true,
       invoice: { select: { status: true, number: true } },
-      _count: { select: { photos: true } },
+      _count: { select: { photos: true, rams: true } },
     },
   });
   const remindWeeks = user.trader.serviceRemindWeeks;
@@ -134,6 +134,11 @@ export default async function JobsPage({
                       ) : null}
                       {job._count.photos > 0 ? (
                         <span className="rounded-full bg-sand px-2 py-1">{job._count.photos} photos</span>
+                      ) : null}
+                      {job._count.rams > 0 ? (
+                        <a href={`/rams?job=${job.id}`} className="rounded-full bg-sand px-2 py-1 no-underline">
+                          RAMS
+                        </a>
                       ) : null}
                     </div>
                     <div className="grid gap-2">

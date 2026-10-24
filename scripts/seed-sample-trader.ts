@@ -16,6 +16,8 @@ import { coolingOffFor } from "../src/lib/quotes/cooling-off";
 import { buildDraftQuote, describeDraft } from "../src/lib/quotes/draft";
 import { PLUMBING_TEMPLATES } from "../src/lib/templates/plumbing";
 import { seedJobTemplates } from "../src/lib/templates/seed-job-templates";
+import { createLibraryRams } from "../src/lib/rams/store";
+import { draftRamsReply } from "../src/lib/whatsapp/plan";
 
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -57,6 +59,8 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       include: { trader: true },
     });
     if (existing?.trader) {
+      await tx.rams.deleteMany({ where: { traderId: existing.trader.id } });
+      await tx.companyDocument.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.job.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.quote.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.enquiry.deleteMany({ where: { traderId: existing.trader.id } });
@@ -454,7 +458,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
     const alex = customers.get("Alex Sample");
     if (!riley || !jones || !alex) throw new Error("Sample customers were not created.");
 
-    await tx.job.create({
+    const outsideTap = await tx.job.create({
       data: {
         traderId: trader.id,
         customerId: riley.id,
@@ -575,6 +579,82 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       },
     });
 
+    const sampleScope = [
+      "Replace the dripping outside tap at 14 Sample Street.",
+      "Isolate the supply, fit a new bib tap, and check for leaks.",
+      "Drill new fixings into the wall if the old ones are loose.",
+      "A ladder may be needed where the tap sits above the water butt.",
+      "No hot works.",
+    ].join(" ");
+    const sampleRams = await createLibraryRams(tx, {
+      traderId: trader.id,
+      jobId: outsideTap.id,
+      trade: "PLUMBING_HEATING",
+      scope: sampleScope,
+      competentName: "Sam Sample",
+      competentRole: "Competent person",
+      competentPhone: DEMO_TRADER.phone,
+      nearestHospital: "Bristol Royal Infirmary (sample). Confirm this before the job.",
+      startOn: daysAgo(1),
+      finishOn: daysAhead(1),
+      clientRole: "Domestic client",
+      briefings: [{ operativeName: "Pat Sample", role: "Operative" }],
+    });
+    if (!sampleRams) throw new Error("The sample RAMS was not created.");
+    await tx.companyDocument.createMany({
+      data: [
+        {
+          traderId: trader.id,
+          kind: "PUBLIC_LIABILITY",
+          title: "Public liability (sample)",
+          issuer: "Sample Mutual",
+          referenceNumber: "SAMPLE-PL-100",
+          issuedOn: daysAgo(40),
+          expiresOn: daysAhead(240),
+          notes: "Fictional policy for the demo. Not a real insurer.",
+          updatedAt: new Date(),
+        },
+        {
+          traderId: trader.id,
+          kind: "TRADE_CARD",
+          title: "Gas Safe card (sample)",
+          issuer: "Gas Safe Register",
+          referenceNumber: "000000",
+          issuedOn: daysAgo(200),
+          expiresOn: daysAhead(160),
+          notes: "Sample number only. Quotestick does not check the register.",
+          updatedAt: new Date(),
+        },
+        {
+          traderId: trader.id,
+          kind: "TRAINING",
+          title: "Unvented hot water (sample certificate)",
+          issuer: "Sample College",
+          referenceNumber: "SAMPLE-UW-1",
+          issuedOn: daysAgo(300),
+          expiresOn: daysAhead(20),
+          notes: "Fictional training record. Expires soon so you can see the reminder.",
+          updatedAt: new Date(),
+        },
+        {
+          traderId: trader.id,
+          kind: "SAFETY_POLICY",
+          title: "Health and safety policy (sample)",
+          issuer: DEMO_TRADER.businessName,
+          referenceNumber: "",
+          issuedOn: daysAgo(15),
+          notes: "A placeholder policy statement for the demo. Not a real health and safety policy.",
+          updatedAt: new Date(),
+        },
+      ],
+    });
+    const ramsCopy = draftRamsReply({
+      number: sampleRams.number,
+      title: sampleRams.title,
+      traderUrl: `${origin}/rams/${sampleRams.id}`,
+      pdfUrl: `${origin}/api/rams/${sampleRams.id}/pdf`,
+    });
+
     const phone = "447700900100";
     await tx.whatsAppMessage.createMany({
       data: [
@@ -592,9 +672,23 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
           body: `Draft invoice ${unpaid.number} for Mrs Jones Sample.\nReplaced a kitchen tap. £80.00.\nNothing has been sent to the customer.\nReply APPROVE ${unpaid.number} to send it.`,
           createdAt: daysAgo(5),
         },
+        {
+          traderId: trader.id,
+          phone,
+          direction: "in",
+          body: "RAMS for the outside tap",
+          createdAt: daysAgo(1),
+        },
+        {
+          traderId: trader.id,
+          phone,
+          direction: "out",
+          body: ramsCopy.traderText,
+          createdAt: daysAgo(1),
+        },
       ],
     });
-  }, { timeout: 20_000 });
+  }, { timeout: 30_000 });
 
   console.log(`Job templates ready (${templates}).`);
   console.log(`Sample trader reset: ${DEMO_BUSINESS_NAME} (${DEMO_EMAIL})`);

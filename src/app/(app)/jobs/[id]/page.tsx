@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
 import { linkJobInvoice, moveJob, setJobPhotoPublic, updateJobService, uploadJobPhotos } from "@/server/job-actions";
+import { createRams } from "@/server/rams-actions";
 
 export const metadata = { title: "Job" };
 
@@ -34,6 +35,7 @@ export default async function JobPage({
       quote: { select: { id: true, number: true, status: true } },
       invoice: { select: { id: true, number: true, status: true, totalPence: true } },
       photos: { orderBy: { createdAt: "asc" } },
+      rams: { orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true, isTemplate: true } },
     },
   });
   if (!job) notFound();
@@ -124,6 +126,27 @@ export default async function JobPage({
         </label>
         <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save link</button>
       </form>
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">RAMS</h2>
+        <p className="text-sm leading-6 text-muted">
+          Draft a risk assessment and method statement from this job. It uses the checked library for your trade. Nothing is sent to the client until you forward the PDF yourself.
+        </p>
+        {job.rams.filter((rams) => !rams.isTemplate).map((rams) => (
+          <a key={rams.id} href={`/rams/${rams.id}`} className="card block no-underline">
+            <p className="font-semibold text-ink">
+              {rams.number} · {rams.title}
+            </p>
+            <p className="mt-1 text-sm text-muted">{rams.status === "ISSUED" ? "Checked" : "Draft"}</p>
+          </a>
+        ))}
+        <form action={createRams}>
+          <input type="hidden" name="jobId" value={job.id} />
+          <input type="hidden" name="returnJob" value={job.id} />
+          <button className={buttonPrimary} type="submit">
+            Draft a RAMS for this job
+          </button>
+        </form>
+      </section>
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Photos</h2>
         <p className="text-sm leading-6 text-muted">
