@@ -7,7 +7,7 @@ Prices below were read from [Render pricing](https://render.com/pricing) and [Re
 - Stripe Connect Express for the UK. **Your page** has Connect Stripe, and it shows whether charges are enabled.
 - Deposit and invoice pay buttons open Checkout on the trader's connected account. The payment goes to the trader. `STRIPE_PLATFORM_FEE_BPS` defaults to 0.
 - Card is the only payment method requested. Apple Pay and Google Pay can appear inside Checkout. Bacs is not requested.
-- The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop.
+- The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop. Plan events use `STRIPE_WEBHOOK_SECRET`. Deposit and invoice events use `STRIPE_CONNECT_WEBHOOK_SECRET`. Both destinations use the same URL.
 - Plans: Free, Trade at £11.99 a month, Splitstick bundle at £16.99 a month. Checkout and the customer portal are used once price ids are set. Until then, upgrade buttons stay hidden and paid features stay available.
 - Free keeps the public page, checklist, enquiries, quotes, customers from those quotes, and the booked job created when a quote is accepted.
 - **Try the demo** works when `DEMO_MODE` is false. It resets only the fictional sample trader. That account does not send real email, WhatsApp or payments.
@@ -30,11 +30,9 @@ Use test mode until a test card payment and a test subscription both succeed. Li
 4. Products → add two recurring **GBP** prices in test mode:
    - Trade, £11.99 every month. Put that price id in `STRIPE_PRICE_TRADE`.
    - Splitstick bundle, £16.99 every month. Put that price id in `STRIPE_PRICE_SPLITSTICK`.
-5. Developers → Webhooks → Add endpoint.
-   - URL: `https://<your Render app host>/api/stripe/webhook`
-   - Listen to events on **your account and connected accounts**. The connected-account switch is required or invoice and deposit payments will not be marked paid.
-   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`.
-   - Copy the signing secret (`whsec_...`) into `STRIPE_WEBHOOK_SECRET`.
+5. Developers → Event destinations. Add two destinations. Both use the same URL: `https://<your Render app host>/api/stripe/webhook`. Each one has its own signing secret (`whsec_...`).
+   - **Your account**. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy this signing secret into `STRIPE_WEBHOOK_SECRET`. This is how a plan payment updates the account.
+   - **Connected accounts**. Event: `checkout.session.completed`. Copy this signing secret into `STRIPE_CONNECT_WEBHOOK_SECRET`. Deposit and invoice payments are charges on the trader's account, so Stripe only sends them here. Without this secret those payments stay unpaid in the app.
 6. Leave `STRIPE_PLATFORM_FEE_BPS` at `0` unless you have decided to keep a fee. `100` would be 1%.
 7. Settings → Payment methods → Apple Pay → add your domain when you want Apple Pay to show. Google Pay is offered by Checkout on supported devices once card payments work. Do not turn on Bacs.
 8. Redeploy the Render web service after the env vars are saved.
@@ -66,6 +64,7 @@ In the Render dashboard, on the web service **Environment** tab, set:
 
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_CONNECT_WEBHOOK_SECRET`
 - `STRIPE_PRICE_TRADE`
 - `STRIPE_PRICE_SPLITSTICK`
 - `STRIPE_PLATFORM_FEE_BPS` as `0` unless you want a fee

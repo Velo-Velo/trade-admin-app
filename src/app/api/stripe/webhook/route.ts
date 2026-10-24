@@ -4,12 +4,13 @@ import { planAfterSubscription } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { paidInvoicePatch } from "@/lib/payments/checkout";
 import { subscriptionPriceId } from "@/lib/payments/connect";
+import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
 import { stripeClient } from "@/lib/stripe";
 
 export async function POST(request: Request) {
   const stripe = stripeClient();
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!stripe || !secret) {
+  const secrets = stripeWebhookSecrets(process.env);
+  if (!stripe || secrets.length === 0) {
     return NextResponse.json({ error: "Stripe is not configured" }, { status: 501 });
   }
   const signature = request.headers.get("stripe-signature");
@@ -17,24 +18,18 @@ export async function POST(request: Request) {
   const body = await request.text();
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, secret);
+    event = constructStripeEvent(stripe, body, signature, secrets);
   } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (session.mode === "subscription") {
-        await recordSubscriptionCheckout(stripe, session);
-      } else if (session.payment_status === "paid") {
-        await recordStripePayment(session);
-      }
-    } else if (
-      event.type === "customer.subscription.created" ||
-      event.type === "customer.subscription.updated" ||
-      event.type === "customer.subscription.deleted"
-    ) {
+    const kind = stripeEventKind(event);
+    if (kind === "subscription_checkout") {
+      await recordSubscriptionCheckout(stripe, event.data.object as Stripe.Checkout.Session);
+    } else if (kind === "connected_payment" || kind === "platform_payment") {
+      await recordStripePayment(event.data.object as Stripe.Checkout.Session);
+    } else if (kind === "subscription") {
       await recordSubscription(event.data.object as Stripe.Subscription);
     }
   } catch (error) {

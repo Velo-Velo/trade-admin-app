@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import Stripe from "stripe";
 import { planAfterSubscription, planForPriceId, featureAllowed, priceIdForPlan, billingConfigured } from "@/lib/billing/plans";
 import { monitorTarget } from "@/lib/monitor";
 import { connectedCheckoutArgs, paidInvoicePatch } from "@/lib/payments/checkout";
 import { cardButtonVisible, connectStatusLabel } from "@/lib/payments/connect-status";
 import { platformFeePence } from "@/lib/payments/fee";
+import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
 import { rateLimit, resetRateLimits } from "@/lib/rate-limit";
 import { realOutboundAllowed } from "@/lib/sandbox";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
@@ -90,6 +92,59 @@ describe("plans", () => {
     expect(planAfterSubscription({ status: "past_due", priceId: "price_bundle", env: prices }).plan).toBe("SPLITSTICK");
     expect(planAfterSubscription({ status: "canceled", priceId: "price_trade", env: prices }).plan).toBe("FREE");
     expect(planAfterSubscription({ status: "active", priceId: "price_unknown", env: prices }).plan).toBe("FREE");
+  });
+});
+
+describe("stripe webhook signatures", () => {
+  const stripe = new Stripe("sk_test_x");
+  const secrets = ["whsec_platform", "whsec_connect"];
+  const connectPayload = JSON.stringify({
+    id: "evt_connect",
+    object: "event",
+    type: "checkout.session.completed",
+    account: "acct_trader",
+    data: {
+      object: {
+        id: "cs_invoice",
+        object: "checkout.session",
+        mode: "payment",
+        payment_status: "paid",
+        metadata: { invoiceId: "inv_1" },
+      },
+    },
+  });
+  const planPayload = JSON.stringify({
+    id: "evt_plan",
+    object: "event",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: "cs_plan",
+        object: "checkout.session",
+        mode: "subscription",
+        payment_status: "paid",
+        metadata: { traderId: "trader_1" },
+      },
+    },
+  });
+
+  function header(payload: string, secret: string) {
+    return stripe.webhooks.generateTestHeaderString({ payload, secret });
+  }
+
+  it("accepts the platform secret and the connect secret", () => {
+    expect(stripeWebhookSecrets({ STRIPE_WEBHOOK_SECRET: " whsec_platform ", STRIPE_CONNECT_WEBHOOK_SECRET: "whsec_connect" })).toEqual(secrets);
+    const platformEvent = constructStripeEvent(stripe, planPayload, header(planPayload, "whsec_platform"), secrets);
+    expect(platformEvent.account).toBeUndefined();
+    expect(stripeEventKind(platformEvent)).toBe("subscription_checkout");
+    const connectEvent = constructStripeEvent(stripe, connectPayload, header(connectPayload, "whsec_connect"), secrets);
+    expect(connectEvent.account).toBe("acct_trader");
+    expect(stripeEventKind(connectEvent)).toBe("connected_payment");
+  });
+
+  it("rejects a signature from neither secret", () => {
+    expect(() => constructStripeEvent(stripe, connectPayload, header(connectPayload, "whsec_other"), secrets)).toThrow();
+    expect(stripeWebhookSecrets({ STRIPE_WEBHOOK_SECRET: "  ", STRIPE_CONNECT_WEBHOOK_SECRET: "" })).toEqual([]);
   });
 });
 
