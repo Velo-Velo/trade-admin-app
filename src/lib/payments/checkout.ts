@@ -10,7 +10,7 @@ export type ConnectedCharge = {
   feePence: number;
 };
 
-/** Direct charge on the trader's connected account. Card includes Apple Pay and Google Pay in Checkout. Bacs is not requested. */
+/** Direct charge on the trader's connected account. The account id comes from Accounts v2 and is still sent as the stripeAccount header. Card includes Apple Pay and Google Pay in Checkout. Bacs is not requested. */
 export function connectedCheckoutArgs(charge: ConnectedCharge): {
   params: {
     mode: "payment";

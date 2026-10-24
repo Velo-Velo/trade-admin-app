@@ -4,7 +4,7 @@ Prices below were read from [Render pricing](https://render.com/pricing) and [Re
 
 ## Done in the app
 
-- Stripe Connect Express for the UK. **Your page** has Connect Stripe, and it shows whether charges are enabled.
+- Stripe Connect for the UK uses Accounts v2. **Your page** creates an Express-dashboard merchant account and shows whether card payments are enabled.
 - Deposit and invoice pay buttons open Checkout on the trader's connected account. The payment goes to the trader. `STRIPE_PLATFORM_FEE_BPS` defaults to 0.
 - Card is the only payment method requested. Apple Pay and Google Pay can appear inside Checkout. Bacs is not requested.
 - The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop. Plan events use `STRIPE_WEBHOOK_SECRET`. Deposit and invoice events use `STRIPE_CONNECT_WEBHOOK_SECRET`. Both destinations use the same URL.
@@ -26,13 +26,14 @@ Use test mode until a test card payment and a test subscription both succeed. Li
 
 1. Open the Stripe dashboard and turn on **test mode**.
 2. Copy the secret key (`sk_test_...`) into Render as `STRIPE_SECRET_KEY`.
-3. Settings → Connect → open **Express** accounts for the **United Kingdom**. Set the platform name, a support email, and the branding you want traders to see during onboarding. You do not paste an account id or a Connect client id into Render. The app creates the Express account when the trader clicks **Connect Stripe**.
+3. Settings → Connect. Turn Connect on for the **United Kingdom**. Set the platform name, a support email, and the branding traders see during onboarding. You do not paste an account id or a Connect client id into Render. **Connect Stripe** creates the account with Accounts v2 (Express dashboard, merchant card payments). Do not turn Accounts v1 back on.
 4. Products → add two recurring **GBP** prices in test mode:
    - Trade, £11.99 every month. Put that price id in `STRIPE_PRICE_TRADE`.
    - Splitstick bundle, £16.99 every month. Put that price id in `STRIPE_PRICE_SPLITSTICK`.
 5. Developers → Event destinations. Add two destinations. Both use the same URL: `https://<your Render app host>/api/stripe/webhook`. Each one has its own signing secret (`whsec_...`).
    - **Your account**. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy this signing secret into `STRIPE_WEBHOOK_SECRET`. This is how a plan payment updates the account.
-   - **Connected accounts**. Event: `checkout.session.completed`. Copy this signing secret into `STRIPE_CONNECT_WEBHOOK_SECRET`. Deposit and invoice payments are charges on the trader's account, so Stripe only sends them here. Without this secret those payments stay unpaid in the app.
+   - **Connected accounts**. Event: `checkout.session.completed`. Copy this signing secret into `STRIPE_CONNECT_WEBHOOK_SECRET`. Deposit and invoice payments are charges on the trader's account, so Stripe only sends them here. Without this secret those payments stay unpaid in the app. Payload style stays **Snapshot**.
+   - **Your account**, a separate destination, payload style **Thin**. Events: `v2.core.account[configuration.merchant].capability_status_updated`, `v2.core.account[configuration.merchant].updated`, `v2.core.account[requirements].updated`, `v2.core.account.updated`. Copy this signing secret into `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`. These are the account updates for Accounts v2, and Stripe sends them on your account, not on connected accounts. The URL is the same. Without this secret, status still refreshes when the trader comes back from Stripe, but a later approval will not show until they open Your page again.
 6. Leave `STRIPE_PLATFORM_FEE_BPS` at `0` unless you have decided to keep a fee. `100` would be 1%.
 7. Settings → Payment methods → Apple Pay → add your domain when you want Apple Pay to show. Google Pay is offered by Checkout on supported devices once card payments work. Do not turn on Bacs.
 8. Redeploy the Render web service after the env vars are saved.
@@ -65,6 +66,7 @@ In the Render dashboard, on the web service **Environment** tab, set:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_CONNECT_WEBHOOK_SECRET`
+- `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`
 - `STRIPE_PRICE_TRADE`
 - `STRIPE_PRICE_SPLITSTICK`
 - `STRIPE_PLATFORM_FEE_BPS` as `0` unless you want a fee

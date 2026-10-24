@@ -35,6 +35,7 @@ export type StripeWebhookKind =
   | "platform_payment"
   | "subscription_checkout"
   | "subscription"
+  | "connect_account"
   | "ignore";
 
 /**
@@ -59,5 +60,6 @@ export function stripeEventKind(event: Stripe.Event): StripeWebhookKind {
   ) {
     return "subscription";
   }
+  if (event.type === "account.updated") return "connect_account";
   return "ignore";
 }
