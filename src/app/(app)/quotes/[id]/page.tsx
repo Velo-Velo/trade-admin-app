@@ -16,9 +16,11 @@ import {
   quoteTotals,
 } from "@/lib/format";
 import { requestOrigin } from "@/lib/origin";
+import { isQuoteExpired } from "@/lib/chasers/plan";
+import { expireQuoteNow } from "@/lib/chasers/queue";
 import { deliveryForCustomer } from "@/lib/quotes/approval";
 import { markJobCompleteAction, updateQuoteReview } from "@/server/invoice-actions";
-import { markQuoteLostAction } from "@/server/chase-actions";
+import { markQuoteLostAction, setQuoteChaseEnabled } from "@/server/chase-actions";
 import { buttonSecondary } from "@/components/styles";
 
 export const metadata = { title: "Quote" };
@@ -45,6 +47,12 @@ export default async function QuotePage({
     },
   });
   if (!quote) notFound();
+  const now = new Date();
+  if (quote.status === "SENT" && isQuoteExpired(quote, now)) {
+    await expireQuoteNow(quote.id, now);
+    quote.status = "EXPIRED";
+    quote.expiredAt = now;
+  }
 
   const totals = quoteTotals(
     quote.lines.map((line) => ({
@@ -171,6 +179,28 @@ export default async function QuotePage({
           {quote.chases.length > 0 ? (
             <p className="card text-sm leading-6">
               A follow-up is waiting in <a href="/follow-ups">Follow-ups</a>. It has not been sent.
+            </p>
+          ) : null}
+          {quote.status === "SENT" ? (
+            <form action={setQuoteChaseEnabled} className="card grid gap-3">
+              <h2 className="font-serif text-2xl">Follow-ups</h2>
+              <p className="text-sm leading-6 text-muted">
+                {user.trader.quoteChasersEnabled
+                  ? `The first note is ${user.trader.quoteChaseDays} days after the quote was sent${user.trader.quoteChaseSecondNudge ? `, then again at ${user.trader.quoteChaseSecondDays} days` : ""}. `
+                  : "Quote follow-ups are switched off on Your page. "}
+                {quote.expiresAt ? `This quote stays open until ${formatDate(quote.expiresAt)}.` : "This quote does not expire."}
+              </p>
+              <input type="hidden" name="quoteId" value={quote.id} />
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" name="chaseEnabled" defaultChecked={quote.chaseEnabled} />
+                Chase this quote
+              </label>
+              <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save follow-up</button>
+            </form>
+          ) : null}
+          {quote.status === "EXPIRED" ? (
+            <p className="card text-sm leading-6">
+              This quote expired{quote.expiredAt ? ` on ${formatDate(quote.expiredAt)}` : ""}. Follow-ups have stopped. The customer can still open the link, but they cannot accept it.
             </p>
           ) : null}
           {quote.status === "SENT" ? (

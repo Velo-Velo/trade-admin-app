@@ -18,14 +18,35 @@ export async function updateFollowUpSettings(formData: FormData) {
   const trader = await requireTrader();
   if (!trader) redirectWith("/login", "error", "Sign in to continue.");
   const parsed = parseFollowUpSettings({
+    quoteChasersEnabled: formData.get("quoteChasersEnabled") === "on",
     quoteChaseDays: String(formData.get("quoteChaseDays") || ""),
     quoteChaseSecondNudge: formData.get("quoteChaseSecondNudge") === "on",
+    quoteChaseSecondDays: String(formData.get("quoteChaseSecondDays") || ""),
+    quoteValidDays: String(formData.get("quoteValidDays") || ""),
     serviceRemindWeeks: String(formData.get("serviceRemindWeeks") || ""),
     autoSendQuoteChasers: formData.get("autoSendQuoteChasers") === "on",
   });
   if (!parsed.ok) redirectWith("/business", "error", parsed.error);
   await prisma.trader.update({ where: { id: trader.id }, data: parsed.data });
   redirectWith("/business", "notice", "Follow-up settings saved. Nothing is sent until you approve it, unless auto-send is on.");
+}
+
+export async function setQuoteChaseEnabled(formData: FormData) {
+  const trader = await requireTrader();
+  if (!trader) redirectWith("/login", "error", "Sign in to continue.");
+  const id = String(formData.get("quoteId") || "");
+  const quote = await prisma.quote.findFirst({ where: { id, traderId: trader.id } });
+  if (!quote) redirectWith("/quotes", "error", "That quote could not be found.");
+  if (quote.status !== "SENT") {
+    redirectWith(`/quotes/${quote.id}`, "error", "Follow-ups only run on a quote that is still waiting for a reply.");
+  }
+  const chaseEnabled = formData.get("chaseEnabled") === "on";
+  await prisma.quote.update({ where: { id: quote.id }, data: { chaseEnabled } });
+  if (!chaseEnabled) {
+    await stopQuoteChases(quote.id, "Follow-ups switched off for this quote. Nothing was sent.");
+    redirectWith(`/quotes/${quote.id}`, "notice", "Follow-ups are off for this quote. Nothing was sent.");
+  }
+  redirectWith(`/quotes/${quote.id}`, "notice", "Follow-ups are on for this quote. Nothing is sent until it is due.");
 }
 
 export async function markQuoteLostAction(formData: FormData) {
@@ -102,6 +123,12 @@ export async function sendChase(formData: FormData) {
       data: { serviceChaseStage: chase.stage + 1, lastServiceChasedAt: now },
     });
   }
+  if (chase.serviceReminderId) {
+    await prisma.serviceReminder.update({
+      where: { id: chase.serviceReminderId },
+      data: { chaseStage: chase.stage + 1, lastChasedAt: now },
+    });
+  }
   redirectWith("/follow-ups", "notice", sent.detail);
 }
 
@@ -133,6 +160,12 @@ export async function dismissChase(formData: FormData) {
     await prisma.job.update({
       where: { id: chase.jobId },
       data: { serviceChaseStage: chase.stage + 1, lastServiceChasedAt: now },
+    });
+  }
+  if (chase.serviceReminderId) {
+    await prisma.serviceReminder.update({
+      where: { id: chase.serviceReminderId },
+      data: { chaseStage: chase.stage + 1, lastChasedAt: now },
     });
   }
   redirectWith("/follow-ups", "notice", "Reminder dismissed. It was not sent.");

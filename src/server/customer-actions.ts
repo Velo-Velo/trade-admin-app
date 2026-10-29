@@ -16,7 +16,8 @@ import { cardButtonVisible } from "@/lib/payments/connect-status";
 import { platformFeePence } from "@/lib/payments/fee";
 import { isSandboxTrader } from "@/lib/sandbox";
 import { stripeClient, stripeConfigured } from "@/lib/stripe";
-import { stopQuoteChases } from "@/lib/chasers/queue";
+import { isQuoteExpired } from "@/lib/chasers/plan";
+import { expireQuoteNow, stopQuoteChases } from "@/lib/chasers/queue";
 import { ensureBookedJob } from "@/lib/jobs/ensure";
 
 async function loadVisible(token: string) {
@@ -27,10 +28,18 @@ async function loadVisible(token: string) {
   return resolvePublicQuoteView(quote);
 }
 
+async function refuseIfExpired(token: string, quote: { id: string; status: string; expiresAt: Date | null }) {
+  const now = new Date();
+  if (quote.status !== "EXPIRED" && !isQuoteExpired(quote, now)) return;
+  if (quote.status === "SENT") await expireQuoteNow(quote.id, now);
+  redirectWith(`/q/${token}`, "error", "This quote has expired.");
+}
+
 export async function acceptQuote(formData: FormData) {
   const token = String(formData.get("token") || "");
   const quote = await loadVisible(token);
   if (!quote) redirectWith(`/q/${token}`, "error", "This quote is not available.");
+  await refuseIfExpired(token, quote);
   try {
     acceptSentQuote(quote.status);
   } catch (error) {
@@ -80,6 +89,7 @@ export async function declineQuote(formData: FormData) {
   const token = String(formData.get("token") || "");
   const quote = await loadVisible(token);
   if (!quote) redirectWith(`/q/${token}`, "error", "This quote is not available.");
+  await refuseIfExpired(token, quote);
   try {
     declineSentQuote(quote.status);
   } catch (error) {

@@ -26,6 +26,7 @@ enum QuoteStatus {
   ACCEPTED
   DECLINED
   LOST
+  EXPIRED
 }
 
 enum ChaseKind {
@@ -140,8 +141,11 @@ model Trader {
   vatNumber             String   @default("")
   googleReviewUrl       String   @default("")
   reviewChasersEnabled  Boolean  @default(true)
+  quoteChasersEnabled   Boolean  @default(true)
   quoteChaseDays        Int      @default(3)
   quoteChaseSecondNudge Boolean  @default(true)
+  quoteChaseSecondDays  Int      @default(7)
+  quoteValidDays        Int      @default(30)
   autoSendQuoteChasers  Boolean  @default(false)
   serviceRemindWeeks    Int      @default(4)
   siteTheme               String   @default("yard")
@@ -166,6 +170,7 @@ model Trader {
   checklist             ChecklistItem[]
   whatsappMessages      WhatsAppMessage[]
   chases                CustomerChase[]
+  serviceReminders      ServiceReminder[]
   companyDocuments      CompanyDocument[]
   rams                  Rams[]
 }
@@ -271,8 +276,11 @@ model Quote {
   reviewClickedAt     DateTime?
   jobCompletedAt      DateTime?
   chaseStage          Int         @default(0)
+  chaseEnabled        Boolean     @default(true)
   lastChasedAt        DateTime?
   lostAt              DateTime?
+  expiresAt           DateTime?
+  expiredAt           DateTime?
   customerId          String?
   createdAt           DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -288,6 +296,7 @@ model Quote {
   @@index([traderId, status])
   @@index([stripePaymentLinkId])
   @@index([customerId])
+  @@index([expiresAt])
 }
 
 model QuoteLine {
@@ -437,6 +446,7 @@ model Customer {
   invoices   Invoice[]
   jobs       Job[]
   rams       Rams[]
+  serviceReminders ServiceReminder[]
 
   @@index([traderId])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -469,6 +479,7 @@ model Job {
   photos     JobPhoto[]
   chases     CustomerChase[]
   rams       Rams[]
+  serviceReminders ServiceReminder[]
 
   @@index([traderId, status])
   @@index([customerId])
@@ -482,6 +493,7 @@ model CustomerChase {
   status    ChaseStatus @default(PENDING)
   quoteId   String?
   jobId     String?
+  serviceReminderId String?
   stage     Int
   subject   String
   body      String
@@ -490,10 +502,34 @@ model CustomerChase {
   trader    Trader      @relation(fields: [traderId], references: [id], onDelete: Cascade)
   quote     Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   job       Job?        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  serviceReminder ServiceReminder? @relation(fields: [serviceReminderId], references: [id], onDelete: Cascade)
 
   @@unique([quoteId, stage])
   @@unique([jobId, stage])
+  @@unique([serviceReminderId, stage])
   @@index([traderId, status])
+}
+
+model ServiceReminder {
+  id             String    @id @default(cuid())
+  traderId       String
+  customerId     String
+  jobId          String?
+  title          String
+  intervalMonths Int       @default(12)
+  dueAt          DateTime
+  enabled        Boolean   @default(true)
+  chaseStage     Int       @default(0)
+  lastChasedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  trader         Trader    @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  job            Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  chases         CustomerChase[]
+
+  @@index([traderId, dueAt])
+  @@index([customerId])
 }
 
 /// Evidence kept once so a later accreditation pack can reuse it.

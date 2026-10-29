@@ -85,7 +85,7 @@ export default async function JobPage({
       <form action={updateJobService} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Repeating service</h2>
         <p className="text-sm leading-6 text-muted">
-          Use this for an annual boiler service or a gas safety check. A reminder is queued before the due date. It invites the customer to enquire. It does not book the visit, and it is not sent until you approve it.
+          Use this for an annual boiler service or a gas safety check. Leave the date blank and marking the job done sets it 12 months later, or choose the date yourself. A reminder is queued before it is due. It invites the customer to enquire and does not book the visit. You can also keep a reminder on the <a href={`/customers/${job.customer.id}`}>customer</a> when the visit itself does not repeat.
         </p>
         <input type="hidden" name="jobId" value={job.id} />
         <label className="flex items-center gap-2 text-sm font-semibold">

@@ -1,13 +1,15 @@
 import { notFound, redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { StatusPill } from "@/components/status-pill";
-import { buttonSecondary, inputClass, labelClass } from "@/components/styles";
+import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { dueAfterJobDate } from "@/lib/chasers/plan";
 import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
-import { firstParam, formatDate, formatGBP } from "@/lib/format";
+import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { invoiceMarker } from "@/lib/jobs/board";
 import { updateCustomerDetails } from "@/server/job-actions";
+import { deleteCustomerReminder, markReminderDone, saveCustomerReminder } from "@/server/reminder-actions";
 
 export const metadata = { title: "Customer" };
 
@@ -28,12 +30,18 @@ export default async function CustomerPage({
     where: { id, traderId: user.trader.id },
     include: {
       jobs: { orderBy: { createdAt: "desc" }, include: { invoice: { select: { status: true } } } },
+      serviceReminders: { orderBy: { dueAt: "asc" } },
       rams: { where: { isTemplate: false }, orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true } },
       quotes: { orderBy: { createdAt: "desc" } },
       invoices: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!customer) notFound();
+  const latestDone = customer.jobs
+    .map((job) => job.doneAt)
+    .filter((date): date is Date => Boolean(date))
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const suggestedDue = dueAfterJobDate(latestDone ?? new Date(), 12);
 
   return (
     <div className="mx-auto grid max-w-2xl gap-5">
@@ -72,6 +80,78 @@ export default async function CustomerPage({
         </div>
         <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save details</button>
       </form>
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">Service reminders</h2>
+        <p className="text-sm leading-6 text-muted">
+          {latestDone
+            ? `A yearly reminder is usually 12 months after the last finished job (${formatDate(latestDone)}). `
+            : "A yearly reminder is usually 12 months from today. "}
+          Use this for a boiler service or a gas safety check that is not already a repeating job. When it is due, it shows in Follow-ups and on the dashboard. The customer is not messaged until you send it.
+        </p>
+        {customer.serviceReminders.map((reminder) => (
+          <div key={reminder.id} className="card grid gap-3">
+            <form action={saveCustomerReminder} className="grid gap-3">
+              <input type="hidden" name="customerId" value={customer.id} />
+              <input type="hidden" name="reminderId" value={reminder.id} />
+              <label className={labelClass}>
+                Reminder
+                <input className={inputClass} name="title" defaultValue={reminder.title} required />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className={labelClass}>
+                  Every (months)
+                  <input className={inputClass} name="intervalMonths" type="number" min={1} max={60} defaultValue={reminder.intervalMonths} required />
+                </label>
+                <label className={labelClass}>
+                  Due
+                  <input className={inputClass} name="dueAt" type="date" defaultValue={dateInputValue(reminder.dueAt)} required />
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" name="enabled" defaultChecked={reminder.enabled} />
+                Remind me when this is due
+              </label>
+              <p className="text-sm text-muted">Due {formatDate(reminder.dueAt)}.</p>
+              <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save</button>
+            </form>
+            <div className="flex flex-wrap gap-2">
+              <form action={markReminderDone}>
+                <input type="hidden" name="customerId" value={customer.id} />
+                <input type="hidden" name="reminderId" value={reminder.id} />
+                <button className={buttonSecondary} type="submit">Mark done and set the next date</button>
+              </form>
+              <form action={deleteCustomerReminder}>
+                <input type="hidden" name="customerId" value={customer.id} />
+                <input type="hidden" name="reminderId" value={reminder.id} />
+                <button className={buttonSecondary} type="submit">Remove</button>
+              </form>
+            </div>
+          </div>
+        ))}
+        <form action={saveCustomerReminder} className="card grid gap-3">
+          <h3 className="font-serif text-xl">Add a reminder</h3>
+          <input type="hidden" name="customerId" value={customer.id} />
+          <label className={labelClass}>
+            What is due
+            <input className={inputClass} name="title" placeholder="Gas safety check" required />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={labelClass}>
+              Every (months)
+              <input className={inputClass} name="intervalMonths" type="number" min={1} max={60} defaultValue={12} required />
+            </label>
+            <label className={labelClass}>
+              Due
+              <input className={inputClass} name="dueAt" type="date" defaultValue={dateInputValue(suggestedDue)} required />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input type="checkbox" name="enabled" defaultChecked />
+            Remind me when this is due
+          </label>
+          <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">Save reminder</button>
+        </form>
+      </section>
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Jobs</h2>
         {customer.jobs.length === 0 ? <p className="card text-sm text-muted">No jobs yet. An accepted quote creates one.</p> : null}

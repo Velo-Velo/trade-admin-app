@@ -177,25 +177,44 @@ export default async function BusinessPage({
       <form action={updateFollowUpSettings} className="grid gap-4 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">Quote follow-ups and service reminders</h2>
         <p className="text-sm leading-6 text-muted">
-          A sent quote with no reply gets a polite follow-up after the number of days you set, and a second note later if you leave that on. A repeating service invites the customer to book from your enquiry page. Both wait in Follow-ups until you tap Send, unless you turn auto-send on.
+          A sent quote with no reply gets a follow-up after the days you set, then a second note if you leave that on. Chasing stops when the customer accepts or declines, or when the quote expires. A repeating job, or a reminder on a customer, invites them to book before a service is due. You get an email when one is ready. The customer is not messaged until you tap Send, unless auto-send is on.
         </p>
-        <label className={labelClass}>
-          Days before the first quote follow-up
-          <input className={inputClass} name="quoteChaseDays" type="number" min={1} max={60} required defaultValue={trader.quoteChaseDays} />
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="quoteChasersEnabled" defaultChecked={trader.quoteChasersEnabled} />
+          Chase sent quotes that have not been answered
         </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelClass}>
+            Days before the first follow-up
+            <input className={inputClass} name="quoteChaseDays" type="number" min={1} max={60} required defaultValue={trader.quoteChaseDays} />
+          </label>
+          <label className={labelClass}>
+            Days before the second follow-up
+            <input className={inputClass} name="quoteChaseSecondDays" type="number" min={1} max={90} required defaultValue={trader.quoteChaseSecondDays} />
+          </label>
+        </div>
         <label className="flex items-center gap-2 text-sm font-semibold">
           <input type="checkbox" name="quoteChaseSecondNudge" defaultChecked={trader.quoteChaseSecondNudge} />
-          Send a second quote reminder later
+          Send a second quote reminder
         </label>
+        <label className={labelClass}>
+          Days a quote stays open
+          <input className={inputClass} name="quoteValidDays" type="number" min={0} max={365} required defaultValue={trader.quoteValidDays} />
+        </label>
+        <p className="text-sm leading-6 text-muted">
+          Use 0 if a quote should not expire. The default is 30 days. This applies to quotes you approve from now on. After the date, chasing stops and the customer cannot accept it.
+        </p>
         <label className={labelClass}>
           Weeks before a service is due
           <input className={inputClass} name="serviceRemindWeeks" type="number" min={1} max={26} required defaultValue={trader.serviceRemindWeeks} />
         </label>
         <label className="flex items-center gap-2 text-sm font-semibold">
           <input type="checkbox" name="autoSendQuoteChasers" defaultChecked={trader.autoSendQuoteChasers} />
-          Auto-send quote chasers and service reminders
+          Auto-send quote chasers and service reminders to the customer
         </label>
-        <p className="text-sm leading-6 text-muted">Leave this off if you want to read each note before it goes to the customer.</p>
+        <p className="text-sm leading-6 text-muted">
+          Leave this off if you want to read each note in Follow-ups before it goes to the customer. You are still emailed when one is ready. Email is used when the customer has an address. WhatsApp is used as well when it is connected and they have a mobile number.
+        </p>
         <button className={buttonPrimary} type="submit">Save follow-up settings</button>
       </form>
       <section id="stripe-connect" className="grid gap-3 border-t border-sand pt-6">

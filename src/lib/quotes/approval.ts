@@ -1,4 +1,4 @@
-export const QUOTE_STATUSES = ["DRAFT", "SENT", "ACCEPTED", "DECLINED", "LOST"] as const;
+export const QUOTE_STATUSES = ["DRAFT", "SENT", "ACCEPTED", "DECLINED", "LOST", "EXPIRED"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export class QuoteNotApprovedError extends Error {
@@ -12,9 +12,9 @@ export class QuoteNotApprovedError extends Error {
   }
 }
 
-/** A customer may open the public link only after the trader has approved it. A lost quote stays open so they can see it is closed. */
+/** A customer may open the public link only after the trader has approved it. A lost or expired quote stays open so they can see it is closed. */
 export function canViewQuotePublicly(status: QuoteStatus): boolean {
-  return status === "SENT" || status === "ACCEPTED" || status === "DECLINED" || status === "LOST";
+  return status === "SENT" || status === "ACCEPTED" || status === "DECLINED" || status === "LOST" || status === "EXPIRED";
 }
 
 /**

@@ -17,6 +17,7 @@ export async function runFollowUps(now = new Date()): Promise<{
   invoicesSent: number;
   reviewsDue: number;
   reviewsSent: number;
+  quotesExpired: number;
   quotesQueued: number;
   quotesSent: number;
   servicesQueued: number;

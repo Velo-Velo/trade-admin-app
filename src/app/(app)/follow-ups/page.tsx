@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { loadUpcomingReminders } from "@/lib/chasers/load";
+import { ReminderList } from "@/components/reminder-list";
 import { prisma } from "@/lib/db";
 import { firstParam } from "@/lib/format";
 import { dismissChase, sendChase } from "@/server/chase-actions";
@@ -16,12 +18,15 @@ export default async function FollowUpsPage({
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
   const query = await searchParams;
+  const now = new Date();
+  const upcoming = await loadUpcomingReminders(user.trader.id, now);
   const chases = await prisma.customerChase.findMany({
     where: { traderId: user.trader.id, status: "PENDING" },
     orderBy: { createdAt: "asc" },
     include: {
       quote: { select: { id: true, number: true, customerName: true } },
       job: { select: { id: true, title: true, customer: { select: { id: true, name: true } } } },
+      serviceReminder: { select: { id: true, title: true, customerId: true, customer: { select: { name: true } } } },
     },
   });
 
@@ -38,14 +43,23 @@ export default async function FollowUpsPage({
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">Upcoming</h2>
+        <ReminderList
+          items={upcoming}
+          now={now}
+          remindWeeks={user.trader.serviceRemindWeeks}
+          empty="No service reminders are due in the next 18 months."
+        />
+      </section>
       {chases.length === 0 ? (
         <p className="card text-sm leading-6 text-muted">
           Nothing is waiting. A sent quote with no reply, and a repeating service that is coming due, appear here for you to send.
         </p>
       ) : null}
       {chases.map((chase) => {
-        const who = chase.quote?.customerName ?? chase.job?.customer.name ?? "Customer";
-        const about = chase.kind === "QUOTE" ? `Quote ${chase.quote?.number ?? ""}`.trim() : chase.job?.title ?? "Service";
+        const who = chase.quote?.customerName ?? chase.job?.customer.name ?? chase.serviceReminder?.customer.name ?? "Customer";
+        const about = chase.kind === "QUOTE" ? `Quote ${chase.quote?.number ?? ""}`.trim() : chase.job?.title ?? chase.serviceReminder?.title ?? "Service";
         return (
           <article key={chase.id} className="card grid gap-3">
             <div>
@@ -65,6 +79,12 @@ export default async function FollowUpsPage({
                   <>
                     {" "}
                     · <a href={`/jobs/${chase.job.id}`}>Open job</a>
+                  </>
+                ) : null}
+                {chase.serviceReminder ? (
+                  <>
+                    {" "}
+                    · <a href={`/customers/${chase.serviceReminder.customerId}`}>Open customer</a>
                   </>
                 ) : null}
               </p>
