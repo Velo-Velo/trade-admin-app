@@ -13,14 +13,20 @@ import {
 import { publicStripeReason } from "@/lib/payments/stripe-reason";
 import { cardButtonVisible, connectStatusLabel } from "@/lib/payments/connect-status";
 import { platformFeePence } from "@/lib/payments/fee";
-import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
+import { acceptsBillingEvent, constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
 import { rateLimit, resetRateLimits } from "@/lib/rate-limit";
 import { realOutboundAllowed } from "@/lib/sandbox";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { sendEmail } from "@/lib/email";
 import { enquirySpamReason } from "@/lib/spam";
 
-const prices = { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_TRADE: "price_trade", STRIPE_PRICE_SPLITSTICK: "price_bundle" };
+const prices = {
+  STRIPE_SECRET_KEY: "sk_test_x",
+  STRIPE_PRICE_SOLO: "price_solo",
+  STRIPE_PRICE_PRO: "price_pro",
+  STRIPE_PRICE_TRADE: "price_trade",
+  STRIPE_PRICE_SPLITSTICK: "price_bundle",
+};
 
 describe("platform fee", () => {
   it("stays at zero unless basis points are a positive integer", () => {
@@ -97,30 +103,43 @@ describe("connected checkout", () => {
 describe("plans", () => {
   it("maps price ids and keeps Free useful until billing is configured", () => {
     expect(billingConfigured({})).toBe(false);
+    expect(billingConfigured({ STRIPE_SECRET_KEY: "sk_live_x", STRIPE_PRICE_SOLO: "price_solo", STRIPE_PRICE_PRO: "price_pro" })).toBe(false);
+    expect(billingConfigured({ STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_TRADE: "price_trade", STRIPE_PRICE_SPLITSTICK: "price_bundle" })).toBe(false);
     expect(billingConfigured(prices)).toBe(true);
-    expect(planForPriceId("price_trade", prices)).toBe("TRADE");
-    expect(planForPriceId("price_bundle", prices)).toBe("SPLITSTICK");
+    expect(planForPriceId("price_solo", prices)).toBe("SOLO");
+    expect(planForPriceId("price_pro", prices)).toBe("PRO");
+    expect(planForPriceId("price_trade", prices)).toBe("SOLO");
+    expect(planForPriceId("price_bundle", prices)).toBe("PRO");
     expect(planForPriceId("price_other", prices)).toBeNull();
-    expect(priceIdForPlan("TRADE", prices)).toBe("price_trade");
+    expect(priceIdForPlan("SOLO", prices)).toBe("price_solo");
+    expect(priceIdForPlan("PRO", prices)).toBe("price_pro");
     expect(featureAllowed({ plan: "FREE", feature: "invoices", billingOn: false })).toBe(true);
     expect(featureAllowed({ plan: "FREE", feature: "invoices", billingOn: true })).toBe(false);
     expect(featureAllowed({ plan: "FREE", feature: "whatsapp", billingOn: true, sandbox: true })).toBe(true);
-    expect(featureAllowed({ plan: "TRADE", feature: "invoices", billingOn: true })).toBe(true);
-    expect(featureAllowed({ plan: "TRADE", feature: "diary", billingOn: true })).toBe(true);
-    expect(featureAllowed({ plan: "TRADE", feature: "cis", billingOn: true })).toBe(false);
+    expect(featureAllowed({ plan: "SOLO", feature: "invoices", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "SOLO", feature: "card_payments", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "SOLO", feature: "diary", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "SOLO", feature: "cis", billingOn: true })).toBe(false);
     expect(featureAllowed({ plan: "FREE", feature: "diary", billingOn: true })).toBe(false);
     expect(featureAllowed({ plan: "FREE", feature: "cis", billingOn: true })).toBe(false);
-    expect(featureAllowed({ plan: "SPLITSTICK", feature: "cis", billingOn: true })).toBe(true);
-    expect(featureAllowed({ plan: "SPLITSTICK", feature: "diary", billingOn: true })).toBe(true);
-    expect(featureAllowed({ plan: "TRADE", feature: "splitstick", billingOn: true })).toBe(false);
-    expect(featureAllowed({ plan: "SPLITSTICK", feature: "splitstick", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "PRO", feature: "cis", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "PRO", feature: "diary", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "SOLO", feature: "splitstick", billingOn: true })).toBe(false);
+    expect(featureAllowed({ plan: "PRO", feature: "splitstick", billingOn: true })).toBe(true);
   });
 
-  it("drops the plan when the subscription is no longer paying", () => {
-    expect(planAfterSubscription({ status: "active", priceId: "price_trade", env: prices }).plan).toBe("TRADE");
-    expect(planAfterSubscription({ status: "past_due", priceId: "price_bundle", env: prices }).plan).toBe("SPLITSTICK");
+  it("drops the plan when the subscription is no longer paying, and keeps a failed payment on the plan", () => {
+    expect(planAfterSubscription({ status: "active", priceId: "price_solo", env: prices }).plan).toBe("SOLO");
+    expect(planAfterSubscription({ status: "past_due", priceId: "price_pro", env: prices }).plan).toBe("PRO");
+    const legacy = planAfterSubscription({ status: "active", priceId: "price_trade", env: prices });
+    expect(legacy.plan).toBe("SOLO");
+    expect(legacy.legacyUnlimited).toBe(true);
+    expect(planAfterSubscription({ status: "active", priceId: "price_bundle", env: prices }).plan).toBe("PRO");
     expect(planAfterSubscription({ status: "canceled", priceId: "price_trade", env: prices }).plan).toBe("FREE");
+    expect(planAfterSubscription({ status: "unpaid", priceId: "price_solo", env: prices }).plan).toBe("FREE");
     expect(planAfterSubscription({ status: "active", priceId: "price_unknown", env: prices }).plan).toBe("FREE");
+    expect(acceptsBillingEvent("subscription_payment_failed", true)).toBe(false);
+    expect(acceptsBillingEvent("connected_payment", true)).toBe(true);
   });
 });
 
@@ -169,6 +188,13 @@ describe("stripe webhook signatures", () => {
     const connectEvent = constructStripeEvent(stripe, connectPayload, header(connectPayload, "whsec_connect"), secrets);
     expect(connectEvent.account).toBe("acct_trader");
     expect(stripeEventKind(connectEvent)).toBe("connected_payment");
+    const failed = JSON.stringify({
+      id: "evt_fail",
+      object: "event",
+      type: "invoice.payment_failed",
+      data: { object: { id: "in_1", object: "invoice" } },
+    });
+    expect(stripeEventKind(constructStripeEvent(stripe, failed, header(failed, "whsec_platform"), secrets))).toBe("subscription_payment_failed");
   });
 
   it("rejects a signature from neither secret", () => {
@@ -277,7 +303,7 @@ describe("card button", () => {
       sandbox: false,
       stripeAccountId: "acct_123",
       stripeChargesEnabled: true,
-      plan: "TRADE" as const,
+      plan: "SOLO" as const,
       billingOn: true,
     };
     expect(cardButtonVisible(ready)).toBe(true);
@@ -285,6 +311,7 @@ describe("card button", () => {
     expect(cardButtonVisible({ ...ready, sandbox: true })).toBe(false);
     expect(cardButtonVisible({ ...ready, stripeChargesEnabled: false })).toBe(false);
     expect(cardButtonVisible({ ...ready, plan: "FREE" })).toBe(false);
+    expect(cardButtonVisible({ ...ready, plan: "PRO" })).toBe(true);
     expect(connectStatusLabel({ stripeConfigured: false, sandbox: false, stripeAccountId: null, stripeDetailsSubmitted: false, stripeChargesEnabled: false }).label).toBe("Not connected");
   });
 });

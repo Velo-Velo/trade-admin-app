@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { traderAccess } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { isServiceDueSoon } from "@/lib/chasers/plan";
 import { ReminderList, type ReminderListItem } from "@/components/reminder-list";
 import { displayPhone } from "@/lib/customers/match";
@@ -34,6 +37,11 @@ export default async function JobsPage({
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
   const query = await searchParams;
+  const access = traderAccess({
+    plan: user.trader.plan,
+    sandbox: isSandboxTrader({ slug: user.trader.slug, email: user.email }),
+    legacyUnlimited: user.trader.legacyUnlimited,
+  });
   await ensureBookedJobsForTrader(prisma, user.trader.id);
   const now = new Date();
   const jobs = await prisma.job.findMany({
@@ -73,6 +81,7 @@ export default async function JobsPage({
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      {access.chasers ? null : <UpgradePrompt feature="chasers" />}
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Due soon</h2>
         <ReminderList
@@ -82,32 +91,36 @@ export default async function JobsPage({
           empty={`No repeating services or customer reminders are due in the next ${remindWeeks} weeks.`}
         />
       </section>
-      <form action={createJob} className="card grid gap-3">
-        <h2 className="font-serif text-2xl">Book a job</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+      {access.manualJobs ? (
+        <form action={createJob} className="card grid gap-3">
+          <h2 className="font-serif text-2xl">Book a job</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={labelClass}>
+              Customer
+              <input className={inputClass} name="name" required placeholder="Name" />
+            </label>
+            <label className={labelClass}>
+              Phone or email
+              <input className={inputClass} name="contact" placeholder="Optional" />
+            </label>
+            <label className={labelClass}>
+              Job
+              <input className={inputClass} name="title" required placeholder="Replace the kitchen tap" />
+            </label>
+            <label className={labelClass}>
+              Postcode
+              <input className={inputClass} name="postcode" placeholder="Postcode" />
+            </label>
+          </div>
           <label className={labelClass}>
-            Customer
-            <input className={inputClass} name="name" required placeholder="Name" />
+            Address
+            <input className={inputClass} name="address" placeholder="Optional" />
           </label>
-          <label className={labelClass}>
-            Phone or email
-            <input className={inputClass} name="contact" placeholder="Optional" />
-          </label>
-          <label className={labelClass}>
-            Job
-            <input className={inputClass} name="title" required placeholder="Replace the kitchen tap" />
-          </label>
-          <label className={labelClass}>
-            Postcode
-            <input className={inputClass} name="postcode" placeholder="Postcode" />
-          </label>
-        </div>
-        <label className={labelClass}>
-          Address
-          <input className={inputClass} name="address" placeholder="Optional" />
-        </label>
-        <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">Add to Booked</button>
-      </form>
+          <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">Add to Booked</button>
+        </form>
+      ) : (
+        <UpgradePrompt feature="manual_jobs" />
+      )}
       <div className="grid gap-4 lg:grid-cols-3">
         {columns.map((column) => {
           const cards = jobs.filter((job) => job.status === column.status);

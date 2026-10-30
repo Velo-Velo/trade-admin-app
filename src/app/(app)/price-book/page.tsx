@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 import { ConfirmSubmit } from "@/components/confirm-submit";
 import { Flash } from "@/components/flash";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { buttonPrimary, buttonQuiet, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { traderAccess } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP, penceToPoundsInput } from "@/lib/format";
 import { addPriceBookItem, deletePriceBookItem, updatePriceBookItem } from "@/server/price-book-actions";
@@ -17,6 +20,11 @@ export default async function PriceBookPage({
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
   const query = await searchParams;
+  const access = traderAccess({
+    plan: user.trader.plan,
+    sandbox: isSandboxTrader({ slug: user.trader.slug, email: user.email }),
+    legacyUnlimited: user.trader.legacyUnlimited,
+  });
   const items = await prisma.priceBookItem.findMany({
     where: { traderId: user.trader.id },
     orderBy: { description: "asc" },
@@ -30,8 +38,10 @@ export default async function PriceBookPage({
           Enter the prices you sell at. Where you know it, add what you last paid and when.
           Draft quotes use a matching row instead of the starter template figure, and show last paid on the line.
           Splitstick is not connected. When it is, receipt prices can update last paid without wiping a sell price you have set.
+          You can still type a sell price and a last-paid figure yourself.
         </p>
       </div>
+      {access.splitstick ? null : <UpgradePrompt feature="splitstick" />}
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
 
       <form action={addPriceBookItem} className="card grid gap-3">

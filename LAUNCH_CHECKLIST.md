@@ -8,10 +8,11 @@ Prices below were read from [Render pricing](https://render.com/pricing) and [Re
 - Deposit and invoice pay buttons open Checkout on the trader's connected account. The payment goes to the trader. The platform pays Stripe's card fee and covers a negative balance. `STRIPE_PLATFORM_FEE_BPS` defaults to 0.
 - Card is the only payment method requested. Apple Pay and Google Pay can appear inside Checkout. Bacs is not requested.
 - The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop. Plan events use `STRIPE_WEBHOOK_SECRET`. Deposit and invoice events use `STRIPE_CONNECT_WEBHOOK_SECRET`. Both destinations use the same URL.
-- Plans: Free, Trade at £11.99 a month, Splitstick bundle at £16.99 a month. Checkout and the customer portal are used once price ids are set. Until then, upgrade buttons stay hidden and paid features stay available.
-- Diary of booked visits on Trade (and the Splitstick bundle). Service reminder dates show on the same calendar and are labelled as reminders, not bookings.
-- CIS deduction records on the Splitstick bundle: the rate you choose (0%, 20% or 30%) on labour only, shown on the invoice PDF, plus a CSV and PDF statement for an accountant. Nothing is filed with HMRC. Receipt photos stay on every plan. Quote deposits and the platform fee are unchanged.
-- Free keeps the public page, checklist, enquiries, quotes, customers from those quotes, and the booked job created when a quote is accepted.
+- Plans: Free, Solo at £14 a month, Pro at £24 a month. Checkout and the customer portal are used once the test secret and both price ids are set. Until then the Plans page says billing is not configured, upgrade buttons stay hidden, and paid features stay available. A live secret key does not start a subscription.
+- Free keeps the public page, checklist, enquiries, quotes, customers from those quotes, the booked job created when a quote is accepted, RAMS, and WhatsApp receipt photos.
+- Solo is the working plan for one person: invoices (40 a month), WhatsApp drafts, jobs, photos (150), a diary of visits, reminders and card payments. Pro removes the caps, adds Splitstick last-paid prices, and adds CIS deduction records. Receipt photos stay on every plan. There is no third Splitstick subscription.
+- CIS figures are the rate the trader chooses (0%, 20% or 30%) on labour only, shown on the invoice PDF, plus a CSV and PDF statement for an accountant. Nothing is filed with HMRC. A CIS status and a contractor tick can be saved on every plan. Quote deposits and the platform fee are unchanged.
+- An existing Trade row becomes Solo and is marked unlimited, so the new caps do not apply. An existing Splitstick bundle row becomes Pro. Stripe keeps charging the old price until the trader changes it in the portal.
 - **Try the demo** works when `DEMO_MODE` is false. It resets only the fictional sample trader. That account does not send real email, WhatsApp or payments.
 - `npm start` still resets the sample trader only when `DEMO_MODE` is exactly `true`.
 - Rate limits on sign-in, registration and the public enquiry form.
@@ -29,18 +30,20 @@ Use test mode until a test card payment and a test subscription both succeed. Li
 1. Open the Stripe dashboard and turn on **test mode**.
 2. Copy the secret key (`sk_test_...`) into Render as `STRIPE_SECRET_KEY`.
 3. Settings → Connect. Turn Connect on for the **United Kingdom**. Set the platform name, a support email, and the branding traders see during onboarding. You do not paste an account id or a Connect client id into Render. **Connect Stripe** creates the account with Accounts v2 (Express dashboard, merchant card payments). Do not turn Accounts v1 back on.
-4. Products → add two recurring **GBP** prices in test mode:
-   - Trade, £11.99 every month. Put that price id in `STRIPE_PRICE_TRADE`.
-   - Splitstick bundle, £16.99 every month. Put that price id in `STRIPE_PRICE_SPLITSTICK`.
-5. Developers → Event destinations. Add two destinations. Both use the same URL: `https://<your Render app host>/api/stripe/webhook`. Each one has its own signing secret (`whsec_...`).
-   - **Your account**. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy this signing secret into `STRIPE_WEBHOOK_SECRET`. This is how a plan payment updates the account.
+4. Stay in **test mode**. Products → add two recurring **GBP** prices. Do not turn on Stripe Tax. VAT on these amounts is still to be decided, and the app does not claim that the price includes or excludes it.
+   - Solo, £14.00 every month. Put that price id in `STRIPE_PRICE_SOLO`.
+   - Pro, £24.00 every month. Put that price id in `STRIPE_PRICE_PRO`.
+   - If anyone is already subscribed to the old Trade (£11.99) or Splitstick bundle (£16.99) prices, leave those prices active. Put the old price ids in `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Do not archive them until those subscriptions have ended. New checkout does not sell them.
+5. Settings → Billing → Customer portal. Turn the portal on. Let customers update their payment method, switch plan, and cancel. Add the Solo and Pro prices to the products they can switch between. Cancellation can take effect at the end of the period Stripe already uses; the webhook then sets the account back to Free.
+6. Developers → Event destinations. Add these destinations. They use the same URL: `https://<your Render app host>/api/stripe/webhook`. Each one has its own signing secret (`whsec_...`).
+   - **Your account**. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. Copy this signing secret into `STRIPE_WEBHOOK_SECRET`. This is how a plan payment updates the account. A failed payment leaves the plan on and sets the status to past due.
    - **Connected accounts**. Event: `checkout.session.completed`. Copy this signing secret into `STRIPE_CONNECT_WEBHOOK_SECRET`. Deposit and invoice payments are charges on the trader's account, so Stripe only sends them here. Without this secret those payments stay unpaid in the app. Payload style stays **Snapshot**.
    - **Your account**, a separate destination, payload style **Thin**. Events: `v2.core.account[configuration.merchant].capability_status_updated`, `v2.core.account[configuration.merchant].updated`, `v2.core.account[requirements].updated`, `v2.core.account.updated`. Copy this signing secret into `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`. These are the account updates for Accounts v2, and Stripe sends them on your account, not on connected accounts. The URL is the same. Without this secret, status still refreshes when the trader comes back from Stripe, but a later approval will not show until they open Your page again.
-6. Leave `STRIPE_PLATFORM_FEE_BPS` at `0` unless you have decided to keep a fee. `100` would be 1%.
-7. Settings → Payment methods → Apple Pay → add your domain when you want Apple Pay to show. Google Pay is offered by Checkout on supported devices once card payments work. Do not turn on Bacs.
-8. Redeploy the Render web service after the env vars are saved.
-9. Create a real test trader (not the sample account), click **Connect Stripe**, finish onboarding with Stripe's test details, then pay a test invoice with card `4242 4242 4242 4242`. The invoice should show paid after the webhook.
-10. On **Plans**, choose Trade. Stripe Billing Checkout should open. After payment, the webhook sets the plan. **Manage billing in Stripe** opens the customer portal.
+7. Leave `STRIPE_PLATFORM_FEE_BPS` at `0` unless you have decided to keep a fee. `100` would be 1%.
+8. Settings → Payment methods → Apple Pay → add your domain when you want Apple Pay to show. Google Pay is offered by Checkout on supported devices once card payments work. Do not turn on Bacs.
+9. Redeploy the Render web service after the env vars are saved.
+10. Create a real test trader (not the sample account), click **Connect Stripe**, finish onboarding with Stripe's test details, then pay a test invoice with card `4242 4242 4242 4242`. The invoice should show paid after the webhook. Connect is separate from the subscription: the deposit still goes to the trader's account, and `STRIPE_PLATFORM_FEE_BPS` is unchanged.
+11. On **Plans**, choose Solo. Stripe Billing Checkout should open in test mode. Pay with `4242 4242 4242 4242`. After the webhook, the plan shows Solo. **Manage billing in Stripe** opens the customer portal. Use a test clock, or the dashboard, to send `invoice.payment_failed` and confirm the plan stays on with status past due. Cancel the subscription and confirm the account returns to Free.
 
 The sample account will not open Stripe. That is deliberate.
 
@@ -69,8 +72,9 @@ In the Render dashboard, on the web service **Environment** tab, set:
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_CONNECT_WEBHOOK_SECRET`
 - `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`
-- `STRIPE_PRICE_TRADE`
-- `STRIPE_PRICE_SPLITSTICK`
+- `STRIPE_PRICE_SOLO`
+- `STRIPE_PRICE_PRO`
+- `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK` only while an old subscription is still billing
 - `STRIPE_PLATFORM_FEE_BPS` as `0` unless you want a fee
 - `DEMO_MODE` as `false`
 - `SMTP_HOST`, `SMTP_PORT` (587 or 465), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` once the web service is on a paid plan

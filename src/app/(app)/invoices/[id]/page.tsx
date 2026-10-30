@@ -128,7 +128,7 @@ export default async function InvoicePage({
       ) : null}
       {invoice.status === "DRAFT" && !cisOn ? (
         <p className="card text-sm leading-6">
-          CIS records are on the Splitstick bundle. <a href="/billing">Open Plans</a>. This draft has no CIS deduction.
+          CIS records are on Pro. <a href="/billing">Open Plans</a>. This draft has no CIS deduction.
         </p>
       ) : null}
 

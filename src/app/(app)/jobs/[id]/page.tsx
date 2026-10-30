@@ -1,15 +1,16 @@
 import { notFound, redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { traderAccess } from "@/lib/billing/plans";
 import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
 import { linkJobInvoice, moveJob, setJobPhotoPublic, updateJobService, uploadJobPhotos } from "@/server/job-actions";
-import { addJobVisit, deleteJobVisit } from "@/server/diary-actions";
-import { billingConfigured, featureAllowed } from "@/lib/billing/plans";
 import { isSandboxTrader } from "@/lib/sandbox";
+import { addJobVisit, deleteJobVisit } from "@/server/diary-actions";
 import { createRams } from "@/server/rams-actions";
 
 export const metadata = { title: "Job" };
@@ -44,18 +45,21 @@ export default async function JobPage({
     },
   });
   if (!job) notFound();
+  const access = traderAccess({
+    plan: user.trader.plan,
+    sandbox: isSandboxTrader({ slug: user.trader.slug, email: user.email }),
+    legacyUnlimited: user.trader.legacyUnlimited,
+  });
+  const photoCount = access.photoCap == null
+    ? 0
+    : await prisma.jobPhoto.count({ where: { job: { traderId: user.trader.id } } });
+  const photoCapReached = access.photoCap != null && photoCount >= access.photoCap;
   const invoices = await prisma.invoice.findMany({
     where: { traderId: user.trader.id, customerId: job.customerId },
     orderBy: { createdAt: "desc" },
     select: { id: true, number: true, status: true, totalPence: true },
   });
   const marker = invoiceMarker(job.invoice?.status);
-  const diaryOn = featureAllowed({
-    plan: user.trader.plan,
-    feature: "diary",
-    sandbox: isSandboxTrader({ slug: user.trader.slug, email: user.email }),
-    billingOn: billingConfigured(),
-  });
   const moves = JOB_STATUSES.filter((status) => canMoveJob(job.status, status));
 
   return (
@@ -106,7 +110,7 @@ export default async function JobPage({
               {visit.scheduledTime ? ` at ${visit.scheduledTime}` : ""}
               {visit.note ? ` · ${visit.note}` : ""}
             </p>
-            {diaryOn ? (
+            {access.diary ? (
               <form action={deleteJobVisit}>
                 <input type="hidden" name="visitId" value={visit.id} />
                 <input type="hidden" name="returnTo" value={`/jobs/${job.id}`} />
@@ -115,7 +119,7 @@ export default async function JobPage({
             ) : null}
           </div>
         ))}
-        {diaryOn ? (
+        {access.diary ? (
           <form action={addJobVisit} className="grid gap-3">
             <input type="hidden" name="jobId" value={job.id} />
             <input type="hidden" name="returnTo" value={`/jobs/${job.id}`} />
@@ -136,53 +140,65 @@ export default async function JobPage({
             <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Add visit</button>
           </form>
         ) : (
-          <p className="text-sm leading-6">The diary is on the Trade plan. <a href="/billing">Open Plans</a>.</p>
+          <UpgradePrompt feature="diary" />
         )}
       </section>
-      <form action={updateJobService} className="card grid gap-3">
-        <h2 className="font-serif text-2xl">Repeating service</h2>
-        <p className="text-sm leading-6 text-muted">
-          Use this for an annual boiler service or a gas safety check. Leave the date blank and marking the job done sets it 12 months later, or choose the date yourself. A reminder is queued before it is due. It invites the customer to enquire and does not book the visit. You can also keep a reminder on the <a href={`/customers/${job.customer.id}`}>customer</a> when the visit itself does not repeat.
-        </p>
-        <input type="hidden" name="jobId" value={job.id} />
-        <label className="flex items-center gap-2 text-sm font-semibold">
-          <input type="checkbox" name="recurring" defaultChecked={job.recurring} />
-          This job repeats
-        </label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className={labelClass}>
-            Every (months)
-            <input className={inputClass} name="intervalMonths" type="number" min={1} max={60} defaultValue={job.intervalMonths} required />
+      {access.chasers ? (
+        <form action={updateJobService} className="card grid gap-3">
+          <h2 className="font-serif text-2xl">Repeating service</h2>
+          <p className="text-sm leading-6 text-muted">
+            Use this for an annual boiler service or a gas safety check. Leave the date blank and marking the job done sets it 12 months later, or choose the date yourself. A reminder is queued before it is due. It invites the customer to enquire and does not book the visit. You can also keep a reminder on the <a href={`/customers/${job.customer.id}`}>customer</a> when the visit itself does not repeat.
+          </p>
+          <input type="hidden" name="jobId" value={job.id} />
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input type="checkbox" name="recurring" defaultChecked={job.recurring} />
+            This job repeats
           </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={labelClass}>
+              Every (months)
+              <input className={inputClass} name="intervalMonths" type="number" min={1} max={60} defaultValue={job.intervalMonths} required />
+            </label>
+            <label className={labelClass}>
+              Next due
+              <input className={inputClass} name="serviceDueAt" type="date" defaultValue={dateInputValue(job.serviceDueAt)} />
+            </label>
+          </div>
+          {job.recurring && job.serviceDueAt ? (
+            <p className="text-sm text-muted">Due {formatDate(job.serviceDueAt)}.</p>
+          ) : null}
+          <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save service</button>
+        </form>
+      ) : (
+        <section className="grid gap-3">
+          <h2 className="font-serif text-2xl">Repeating service</h2>
+          {job.recurring && job.serviceDueAt ? <p className="text-sm text-muted">Due {formatDate(job.serviceDueAt)}.</p> : null}
+          <UpgradePrompt feature="chasers" />
+        </section>
+      )}
+      {access.invoices ? (
+        <form action={linkJobInvoice} className="card grid gap-3">
+          <h2 className="font-serif text-2xl">Invoice</h2>
+          <p className="text-sm leading-6 text-muted">
+            Paid and Invoiced come from the linked invoice. A draft stays private until you approve it.
+          </p>
+          <input type="hidden" name="jobId" value={job.id} />
           <label className={labelClass}>
-            Next due
-            <input className={inputClass} name="serviceDueAt" type="date" defaultValue={dateInputValue(job.serviceDueAt)} />
+            Linked invoice
+            <select className={inputClass} name="invoiceId" defaultValue={job.invoiceId ?? ""}>
+              <option value="">None</option>
+              {invoices.map((invoice) => (
+                <option key={invoice.id} value={invoice.id}>
+                  {invoice.number} · {invoice.status.toLowerCase()} · {formatGBP(invoice.totalPence)}
+                </option>
+              ))}
+            </select>
           </label>
-        </div>
-        {job.recurring && job.serviceDueAt ? (
-          <p className="text-sm text-muted">Due {formatDate(job.serviceDueAt)}.</p>
-        ) : null}
-        <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save service</button>
-      </form>
-      <form action={linkJobInvoice} className="card grid gap-3">
-        <h2 className="font-serif text-2xl">Invoice</h2>
-        <p className="text-sm leading-6 text-muted">
-          Paid and Invoiced come from the linked invoice. A draft stays private until you approve it.
-        </p>
-        <input type="hidden" name="jobId" value={job.id} />
-        <label className={labelClass}>
-          Linked invoice
-          <select className={inputClass} name="invoiceId" defaultValue={job.invoiceId ?? ""}>
-            <option value="">None</option>
-            {invoices.map((invoice) => (
-              <option key={invoice.id} value={invoice.id}>
-                {invoice.number} · {invoice.status.toLowerCase()} · {formatGBP(invoice.totalPence)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save link</button>
-      </form>
+          <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save link</button>
+        </form>
+      ) : (
+        <UpgradePrompt feature="invoices" />
+      )}
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">RAMS</h2>
         <p className="text-sm leading-6 text-muted">
@@ -245,6 +261,7 @@ export default async function JobPage({
             </figure>
           ))}
         </div>
+        {!access.photos ? <UpgradePrompt feature="photos" /> : photoCapReached ? <UpgradePrompt feature="photo_volume" /> : (
         <form action={uploadJobPhotos} className="card grid gap-3">
           <input type="hidden" name="jobId" value={job.id} />
           <label className={labelClass}>
@@ -260,6 +277,7 @@ export default async function JobPage({
           </label>
           <button className={`${buttonPrimary} w-full sm:w-auto`} type="submit">Add photos</button>
         </form>
+        )}
       </section>
     </div>
   );

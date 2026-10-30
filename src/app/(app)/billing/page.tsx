@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
-import { billingConfigured } from "@/lib/billing/plans";
+import { billingSetup, planLabel, subscriptionStillPaying } from "@/lib/billing/plans";
 import { firstParam } from "@/lib/format";
 import { PLANS, PRICING_NOTE } from "@/lib/marketing";
 import { isSandboxTrader } from "@/lib/sandbox";
@@ -10,7 +10,7 @@ import { openBillingPortal, startPlanCheckout } from "@/server/stripe-actions";
 
 export const metadata = { title: "Plans" };
 
-const PLAN_KEY = { Free: "FREE", Trade: "TRADE", "Splitstick bundle": "SPLITSTICK" } as const;
+const PLAN_KEY = { Free: "FREE", Solo: "SOLO", Pro: "PRO" } as const;
 
 export default async function BillingPage({
   searchParams,
@@ -22,8 +22,10 @@ export default async function BillingPage({
   const query = await searchParams;
   const trader = user.trader;
   const sandbox = isSandboxTrader({ slug: trader.slug, email: user.email });
-  const billing = billingConfigured();
+  const setup = billingSetup();
+  const billing = setup === "ready";
   const current = trader.plan;
+  const paying = subscriptionStillPaying(trader.subscriptionStatus);
 
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
@@ -33,9 +35,15 @@ export default async function BillingPage({
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
       <p className="text-sm">
-        This account is on <span className="font-semibold">{current === "SPLITSTICK" ? "Splitstick bundle" : current === "TRADE" ? "Trade" : "Free"}</span>
+        This account is on <span className="font-semibold">{planLabel(current)}</span>
         {trader.subscriptionStatus ? ` · Stripe status ${trader.subscriptionStatus}` : ""}.
+        {trader.legacyUnlimited && current === "SOLO" ? " The older Trade price is still in use, so the Solo monthly caps do not apply." : ""}
       </p>
+      {trader.subscriptionStatus === "past_due" ? (
+        <p className="text-sm leading-6">
+          The last subscription payment failed. The plan stays on while you update the card in Stripe. Open Manage billing.
+        </p>
+      ) : null}
       <div id="plans" className="border border-sand bg-white">
         {PLANS.map((plan, index) => {
           const key = PLAN_KEY[plan.name];
@@ -60,7 +68,7 @@ export default async function BillingPage({
                   <form action={startPlanCheckout} className="mt-4">
                     <input type="hidden" name="plan" value={key} />
                     <button className={buttonPrimary} type="submit">
-                      Choose {plan.name}
+                      {paying ? `Change to ${plan.name}` : `Choose ${plan.name}`}
                     </button>
                   </form>
                 ) : null}
@@ -69,12 +77,23 @@ export default async function BillingPage({
           );
         })}
       </div>
+      <p className="text-sm leading-6 text-muted">
+        VAT on these prices is not set up. £14 and £24 are the amounts shown. Do not read them as a statement that VAT is included or excluded. Quotestick does not give tax advice.
+      </p>
       {sandbox ? (
         <p className="text-sm leading-6 text-muted">The sample account can open every feature, but it does not subscribe and it does not take a payment.</p>
-      ) : billing ? (
-        <p className="text-sm leading-6 text-muted">Choosing a paid plan opens Stripe Billing. You can change or cancel it from the Stripe customer portal.</p>
+      ) : setup === "ready" ? (
+        <p className="text-sm leading-6 text-muted">
+          Choosing a paid plan opens Stripe Billing in test mode. Use card 4242 4242 4242 4242. A second subscription is not started if this account already has one: Stripe opens the customer portal so you can change or cancel it.
+        </p>
+      ) : setup === "live_key" ? (
+        <p className="text-sm leading-6">
+          Billing is not configured. A live Stripe key is set, and subscriptions stay off until a test key and the Solo and Pro price ids are set. Paid features stay available and no subscription is taken.
+        </p>
       ) : (
-        <p className="text-sm leading-6">Upgrade buttons stay hidden until the Stripe secret key and both price IDs are set. Until then, paid features stay available and no subscription is taken.</p>
+        <p className="text-sm leading-6">
+          Billing is not configured. Upgrade buttons stay hidden until the Stripe test secret and the Solo and Pro price ids are set. Until then, paid features stay available and no subscription is taken.
+        </p>
       )}
       {trader.stripeCustomerId && billing && !sandbox ? (
         <form action={openBillingPortal}>

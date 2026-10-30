@@ -13,37 +13,41 @@ export const PLANS = [
       "A one-page website with your name, trade and area",
       "A start-up checklist, with badges only if you choose to show them",
       "Enquiries, draft quotes, and the booked job when a customer accepts",
+      "RAMS drafts, and company documents you store yourself",
       "Receipt photos from WhatsApp, for you to check. A record for you and your accountant, not a tax return",
       "Nothing is sent until you approve",
     ],
   },
   {
-    name: "Trade",
-    price: "£11.99",
+    name: "Solo",
+    price: "£14",
     period: "a month",
     points: [
+      "Everything in Free",
       "Invoices, PDFs and payment reminders",
-      "WhatsApp in, a draft quote or invoice out",
-      "Job photos, quote follow-ups and service reminders",
+      "WhatsApp drafts for a quote, an invoice or a RAMS. Receipt photos stay on Free",
+      "Jobs you add yourself, and up to 150 job photos",
       "A diary of booked visits. Service dates show separately and do not book the job",
       "Card payments to your own Stripe account",
+      "Quote follow-ups, service reminders and review requests",
+      "Up to 40 invoices in a calendar month",
     ],
   },
   {
-    name: "Splitstick bundle",
-    price: "£16.99",
+    name: "Pro",
+    price: "£24",
     period: "a month",
     points: [
-      "Everything in Trade",
-      "Last-paid prices from Splitstick receipts, when that connection is switched on",
+      "Everything in Solo, without the monthly invoice cap or the photo cap",
+      "Last-paid prices from Splitstick, when that connection is switched on",
       "CIS deductions on invoices, on the labour only, and a statement for your accountant. Not filed with HMRC",
-      "The price book still waits for you. A receipt does not send a quote",
+      "For a busier book of work. This version does not add extra logins for a crew",
     ],
   },
 ] as const;
 
 export const PRICING_NOTE =
-  "Creating an account does not charge a card. You are charged only after Stripe Billing is switched on and you choose Trade or the Splitstick bundle.";
+  "Creating an account does not charge a card. You are charged only after Stripe Billing is switched on and you choose Solo or Pro. The prices are shown as £14 and £24 a month. Whether VAT is added is still for the owner to confirm. Quotestick does not give tax advice.";
 
 export const FAQ = [
   {
@@ -68,10 +72,10 @@ export const FAQ = [
   },
   {
     q: "What is included before I pay?",
-    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, and receipt photos on WhatsApp. Trade adds invoices, draft quotes and invoices on WhatsApp, photos, reminders, card payments and a diary of visits. The Splitstick bundle adds receipt prices and CIS deduction records. Those figures are for you and your accountant. They are not filed with HMRC.",
+    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, RAMS, and receipt photos on WhatsApp. Solo adds invoices, WhatsApp drafts, jobs you add yourself, photos, a diary, reminders and card payments, with a monthly cap. Pro removes that cap, adds Splitstick last-paid prices, and adds CIS deduction records. Those figures are for you and your accountant. They are not filed with HMRC. Prices are shown as £14 and £24 a month. Whether VAT is added is still to be confirmed.",
   },
   {
     q: "Does Quotestick file CIS or a tax return?",
-    a: "No. On the Splitstick bundle you can record a CIS deduction on an invoice. It is a percentage of the labour, not the materials or the VAT. You can download a statement for your accountant. Quotestick does not send it to HMRC and it does not give tax advice.",
+    a: "No. On Pro you can record a CIS deduction on an invoice. It is a percentage of the labour, not the materials or the VAT. You can download a statement for your accountant. Quotestick does not send it to HMRC and it does not give tax advice.",
   },
 ] as const;

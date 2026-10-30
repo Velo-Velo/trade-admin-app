@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { traderAccess } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { firstParam } from "@/lib/format";
 import { platformFeeBps, platformFeeSentence } from "@/lib/payments/fee";
@@ -31,6 +33,11 @@ export default async function BusinessPage({
   const query = await searchParams;
   const origin = await requestOrigin();
   const sandbox = isSandboxTrader({ slug: user.trader.slug, email: user.email });
+  const access = traderAccess({
+    plan: user.trader.plan,
+    sandbox,
+    legacyUnlimited: user.trader.legacyUnlimited,
+  });
   const stripeFlag = firstParam(query.stripe);
   if (stripeFlag === "return" && user.trader.stripeAccountId && stripeConfigured() && !sandbox) {
     await syncConnectAccount(user.trader.id, user.trader.stripeAccountId);
@@ -179,7 +186,7 @@ export default async function BusinessPage({
       <form action={saveCisProfile} className="grid gap-4 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">CIS</h2>
         <p className="text-sm leading-6 text-muted">
-          If a contractor deducts CIS from what they pay you, record the status you want used as the default. Gross is 0%, standard is 20%, higher is 30%. This is a record for you and your accountant. Quotestick does not check it with HMRC, does not file a return, and does not give tax advice. Deductions are added to invoices on the Splitstick bundle.
+          If a contractor deducts CIS from what they pay you, record the status you want used as the default. Gross is 0%, standard is 20%, higher is 30%. This is a record for you and your accountant. Quotestick does not check it with HMRC, does not file a return, and does not give tax advice. Deductions are added to invoices on Pro.
         </p>
         <label className={labelClass}>
           Your status
@@ -198,6 +205,7 @@ export default async function BusinessPage({
       </form>
       <form action={updateFollowUpSettings} className="grid gap-4 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">Quote follow-ups and service reminders</h2>
+        {access.chasers ? null : <UpgradePrompt feature="chasers" />}
         <p className="text-sm leading-6 text-muted">
           A sent quote with no reply gets a follow-up after the days you set, then a second note if you leave that on. Chasing stops when the customer accepts or declines, or when the quote expires. A repeating job, or a reminder on a customer, invites them to book before a service is due. You get an email when one is ready. The customer is not messaged until you tap Send, unless auto-send is on.
         </p>
@@ -247,7 +255,8 @@ export default async function BusinessPage({
         <p className="text-sm leading-6 text-muted">
           Card, Apple Pay and Google Pay. Bank transfer by Bacs is not offered here. Customers pay on the quote or invoice page, and the money goes to your connected account.
         </p>
-        {sandbox ? null : stripeConfigured() ? (
+        {access.cardPayments ? null : <UpgradePrompt feature="card_payments" />}
+        {sandbox || (!access.cardPayments && !trader.stripeAccountId) ? null : stripeConfigured() ? (
           <form action={trader.stripeAccountId && !trader.stripeChargesEnabled ? refreshStripeConnect : startStripeConnect}>
             <button className={buttonPrimary} type="submit">
               {trader.stripeChargesEnabled ? "Update Stripe details" : trader.stripeAccountId ? "Continue Stripe setup" : "Connect Stripe"}

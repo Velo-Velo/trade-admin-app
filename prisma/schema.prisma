@@ -79,8 +79,8 @@ enum JobPhotoKind {
 
 enum PlanTier {
   FREE
-  TRADE
-  SPLITSTICK
+  SOLO
+  PRO
 }
 
 enum MagicPurpose {
@@ -162,11 +162,15 @@ model Trader {
   siteTheme               String   @default("yard")
   ramsSeq                 Int      @default(0)
   plan                    PlanTier @default(FREE)
+  /// Trade subscribers moved to Solo keep the old unlimited allowance.
+  legacyUnlimited         Boolean  @default(false)
   stripeAccountId         String?  @unique
   stripeChargesEnabled    Boolean  @default(false)
   stripeDetailsSubmitted  Boolean  @default(false)
   stripePayoutsEnabled    Boolean  @default(false)
   stripeCustomerId        String?  @unique
+  /// Platform Billing subscription. Not the Connect account used for deposits.
+  stripeSubscriptionId    String?  @unique
   subscriptionStatus      String   @default("")
   subscriptionPriceId     String   @default("")
   createdAt               DateTime @default(now())

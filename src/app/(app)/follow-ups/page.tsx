@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { buttonPrimary, buttonSecondary } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
+import { traderAccess } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { loadUpcomingReminders } from "@/lib/chasers/load";
 import { ReminderList } from "@/components/reminder-list";
 import { prisma } from "@/lib/db";
@@ -18,6 +21,11 @@ export default async function FollowUpsPage({
   const user = await getCurrentUser();
   if (!user?.trader) redirect("/onboarding");
   const query = await searchParams;
+  const access = traderAccess({
+    plan: user.trader.plan,
+    sandbox: isSandboxTrader({ slug: user.trader.slug, email: user.email }),
+    legacyUnlimited: user.trader.legacyUnlimited,
+  });
   const now = new Date();
   const upcoming = await loadUpcomingReminders(user.trader.id, now);
   const chases = await prisma.customerChase.findMany({
@@ -43,6 +51,7 @@ export default async function FollowUpsPage({
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      {access.chasers ? null : <UpgradePrompt feature="chasers" />}
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Upcoming</h2>
         <ReminderList
@@ -91,12 +100,14 @@ export default async function FollowUpsPage({
             </div>
             <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink">{chase.body}</pre>
             <div className="grid gap-2 sm:grid-cols-2">
-              <form action={sendChase}>
-                <input type="hidden" name="chaseId" value={chase.id} />
-                <button className={`${buttonPrimary} w-full`} type="submit">
-                  Send
-                </button>
-              </form>
+              {access.chasers ? (
+                <form action={sendChase}>
+                  <input type="hidden" name="chaseId" value={chase.id} />
+                  <button className={`${buttonPrimary} w-full`} type="submit">
+                    Send
+                  </button>
+                </form>
+              ) : null}
               <form action={dismissChase}>
                 <input type="hidden" name="chaseId" value={chase.id} />
                 <button className={`${buttonSecondary} w-full`} type="submit">

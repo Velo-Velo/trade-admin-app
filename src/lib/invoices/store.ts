@@ -4,7 +4,7 @@ import { findOrCreateCustomer } from "@/lib/customers/store";
 import { soleUninvoicedJob } from "@/lib/jobs/board";
 import { customerEmail } from "@/lib/format";
 import { deliver } from "@/lib/channels";
-import { billingConfigured, featureAllowed, sendBlockReason, upgradeMessage } from "@/lib/billing/plans";
+import { billingConfigured, featureAllowed, londonMonthStart, sendBlockReason, upgradeMessage, volumeAllows, volumeCap } from "@/lib/billing/plans";
 import { isSandboxTrader } from "@/lib/sandbox";
 import { approveInvoiceDraft, customerInvoicePath } from "@/lib/invoices/approval";
 import { splitVat } from "@/lib/invoices/vat";
@@ -20,6 +20,24 @@ export async function createDraftInvoice(input: {
   source: string;
 }) {
   const trader = await prisma.trader.findUniqueOrThrow({ where: { id: input.traderId } });
+  const sandbox = isSandboxTrader({ slug: trader.slug });
+  const billingOn = billingConfigured();
+  if (!featureAllowed({ plan: trader.plan, feature: "invoices", sandbox, billingOn })) {
+    throw new Error(upgradeMessage("invoices"));
+  }
+  const invoiceCap = volumeCap({
+    plan: trader.plan,
+    kind: "invoices",
+    sandbox,
+    billingOn,
+    legacyUnlimited: trader.legacyUnlimited,
+  });
+  if (invoiceCap != null) {
+    const used = await prisma.invoice.count({
+      where: { traderId: trader.id, createdAt: { gte: londonMonthStart(new Date()) } },
+    });
+    if (!volumeAllows(invoiceCap, used, 1)) throw new Error(upgradeMessage("invoice_volume"));
+  }
   const amounts = splitVat(input.parsed.amountPence, trader.vatRegistered, input.parsed.vatExclusive);
   const dueAt = new Date(Date.now() + input.parsed.dueDays * DAY);
   return prisma.$transaction(async (tx) => {
