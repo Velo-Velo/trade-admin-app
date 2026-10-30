@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   if (!user?.trader) redirect("/onboarding");
   const traderId = user.trader.id;
   const now = new Date();
-  const [enquiryCount, grouped, drafts, checklist, chaseCount, upcoming] = await Promise.all([
+  const [enquiryCount, grouped, drafts, checklist, chaseCount, upcoming, receiptCount] = await Promise.all([
     prisma.enquiry.count({ where: { traderId } }),
     prisma.quote.groupBy({
       by: ["status"],
@@ -32,6 +32,7 @@ export default async function DashboardPage() {
     prisma.checklistItem.findMany({ where: { traderId } }),
     prisma.customerChase.count({ where: { traderId, status: "PENDING" } }),
     loadUpcomingReminders(traderId, now),
+    prisma.expense.count({ where: { traderId, status: "NEEDS_REVIEW" } }),
   ]);
   const remindWeeks = user.trader.serviceRemindWeeks;
   const countFor = (status: "DRAFT" | "SENT" | "ACCEPTED") =>
@@ -87,6 +88,17 @@ export default async function DashboardPage() {
           remindWeeks={remindWeeks}
           empty={`Nothing is due in the next 18 months. Add a repeating service on a job, or a reminder on a customer.`}
         />
+      </section>
+      <section className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-2xl">Receipts</h2>
+          <p className="mt-1 text-sm text-muted">
+            {receiptCount === 0
+              ? "No receipt photos are waiting to be checked."
+              : `${receiptCount} waiting for you to check.`}
+          </p>
+        </div>
+        <a href="/receipts" className="text-sm font-semibold">Open receipts</a>
       </section>
       <section className="card flex flex-wrap items-center justify-between gap-3">
         <div>

@@ -9,6 +9,8 @@ const styles: Record<string, string> = {
   BOOKED: "bg-amber-100 text-amber-950",
   IN_PROGRESS: "bg-sky-100 text-sky-950",
   DONE: "bg-emerald-100 text-emerald-950",
+  NEEDS_REVIEW: "bg-amber-100 text-amber-950",
+  CONFIRMED: "bg-emerald-100 text-emerald-950",
 };
 
 const labels: Record<string, string> = {
@@ -22,6 +24,8 @@ const labels: Record<string, string> = {
   BOOKED: "Booked",
   IN_PROGRESS: "In progress",
   DONE: "Done",
+  NEEDS_REVIEW: "Needs review",
+  CONFIRMED: "Confirmed",
 };
 
 export function StatusPill({ status }: { status: string }) {

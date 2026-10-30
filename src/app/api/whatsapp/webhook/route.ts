@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { prepareJobPhoto } from "@/lib/images/prepare";
+import { readerFromEnv } from "@/lib/receipts/read";
+import { prismaReceiptStore } from "@/lib/receipts/store";
 import { downloadWhatsAppMedia, sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp/client";
 import { handleInboundWhatsApp } from "@/lib/whatsapp/handle";
-import { verifyMetaSignature } from "@/lib/whatsapp/signature";
+import { acceptReceiptPhoto, authoriseWebhook, listInboundPieces } from "@/lib/whatsapp/inbound";
 import { transcribeVoiceNote } from "@/lib/whatsapp/transcribe";
 
 export async function GET(request: Request) {
@@ -16,62 +19,63 @@ export async function GET(request: Request) {
   return new Response("Forbidden", { status: 403 });
 }
 
-type Incoming = {
-  entry?: Array<{
-    changes?: Array<{
-      value?: {
-        messages?: Array<{
-          from?: string;
-          id?: string;
-          type?: string;
-          text?: { body?: string };
-          audio?: { id?: string };
-        }>;
-      };
-    }>;
-  }>;
-};
+function appOrigin(): string {
+  return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
 
 export async function POST(request: Request) {
-  const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return NextResponse.json({ error: "WhatsApp app secret is not set" }, { status: 501 });
   const raw = await request.text();
-  const signature = request.headers.get("x-hub-signature-256");
-  if (!verifyMetaSignature(raw, signature, secret)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  }
-  let payload: Incoming;
-  try {
-    payload = JSON.parse(raw) as Incoming;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  const decision = authoriseWebhook(raw, request.headers.get("x-hub-signature-256"), process.env.WHATSAPP_APP_SECRET);
+  if (!decision.ok) return NextResponse.json({ error: decision.error }, { status: decision.status });
 
-  const messages = payload.entry?.flatMap((entry) => entry.changes ?? []).flatMap((change) => change.value?.messages ?? []) ?? [];
-  for (const message of messages) {
-    if (!message.from || !message.id) continue;
-    let text = message.text?.body ?? "";
-    if (message.type === "audio" && message.audio?.id) {
-      const media = await downloadWhatsAppMedia(message.audio.id);
-      const transcript = media ? await transcribeVoiceNote(media.bytes, media.mime) : null;
-      if (!transcript) {
-        const hint = process.env.OPENAI_API_KEY
-          ? "I couldn't transcribe that voice note. Type the job instead."
-          : "Voice notes need an OpenAI key before I can transcribe them. Type the job instead.";
+  const pieces = listInboundPieces(decision.payload);
+  for (const piece of pieces) {
+    try {
+      if (piece.kind === "image") {
+        await acceptReceiptPhoto({
+          from: piece.from,
+          id: piece.id,
+          imageId: piece.imageId,
+          caption: piece.caption,
+          viaMeta: true,
+          origin: appOrigin(),
+          read: readerFromEnv(),
+          download: downloadWhatsAppMedia,
+          prepare: prepareJobPhoto,
+          store: prismaReceiptStore(),
+        });
+        continue;
+      }
+      if (piece.kind === "unsupported") {
         if (whatsappConfigured()) {
           try {
-            await sendWhatsAppText(message.from, hint);
+            await sendWhatsAppText(piece.from, "Send a photo of the receipt as a picture. JPG or PNG works.");
           } catch (error) {
-            console.error("[whatsapp voice]", error);
+            console.error("[whatsapp receipt]", error);
           }
         }
         continue;
       }
-      text = transcript;
-    }
-    if (!text.trim()) continue;
-    try {
-      await handleInboundWhatsApp({ from: message.from, text, viaMeta: true, externalId: message.id });
+      if (piece.kind === "audio") {
+        const media = await downloadWhatsAppMedia(piece.audioId);
+        const transcript = media ? await transcribeVoiceNote(media.bytes, media.mime) : null;
+        if (!transcript) {
+          const hint = process.env.OPENAI_API_KEY
+            ? "I couldn't transcribe that voice note. Type the job instead."
+            : "Voice notes need an OpenAI key before I can transcribe them. Type the job instead.";
+          if (whatsappConfigured()) {
+            try {
+              await sendWhatsAppText(piece.from, hint);
+            } catch (error) {
+              console.error("[whatsapp voice]", error);
+            }
+          }
+          continue;
+        }
+        await handleInboundWhatsApp({ from: piece.from, text: transcript, viaMeta: true, externalId: piece.id });
+        continue;
+      }
+      await handleInboundWhatsApp({ from: piece.from, text: piece.text, viaMeta: true, externalId: piece.id });
     } catch (error) {
       console.error("[whatsapp inbound]", error);
     }

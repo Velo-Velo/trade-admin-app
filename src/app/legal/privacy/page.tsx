@@ -7,7 +7,7 @@ export default function PrivacyPage() {
       <p>
         Quotestick stores what a trader types in, and what their customers send through the enquiry form, WhatsApp (when it is connected) and quote or invoice pages.
       </p>
-      <p>That includes names, emails, phone numbers, addresses, job descriptions, prices, bank details the trader chooses to print, and photographs. Photographs are kept in the database. A job photo is private until the trader marks it to show on their page.</p>
+      <p>That includes names, emails, phone numbers, addresses, job descriptions, prices, bank details the trader chooses to print, and photographs. Photographs are kept in the database. A job photo is private until the trader marks it to show on their page. A receipt photo sent on WhatsApp, or added in the app, is stored with the supplier, date, total and any VAT figure you confirm. It is a record for you and your accountant. It is not sent to HMRC.</p>
       <p>The session cookie keeps you signed in. Card payments, if switched on, are taken by Stripe. Email, if switched on, is sent through the mail server the operator configured. Quotestick does not sell this data.</p>
       <p>This note describes the product. It is not a privacy policy drafted by a solicitor, and this build does not publish a company number or a postal address. To ask for a copy or deletion, use the email address on the account, or write to the person who runs this installation.</p>
     </article>

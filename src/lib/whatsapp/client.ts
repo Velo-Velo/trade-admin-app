@@ -4,6 +4,26 @@ export function whatsappConfigured(): boolean {
   return Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 }
 
+type WhatsAppEnv = {
+  WHATSAPP_TOKEN?: string;
+  WHATSAPP_PHONE_NUMBER_ID?: string;
+  WHATSAPP_VERIFY_TOKEN?: string;
+  WHATSAPP_APP_SECRET?: string;
+};
+
+/** All four Meta values are required before a receipt photo can arrive. Missing any of them shows as not connected. */
+export function whatsappConnection(env?: WhatsAppEnv): { connected: boolean } {
+  const source: WhatsAppEnv = env ?? {
+    WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN,
+    WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
+    WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
+  };
+  return {
+    connected: Boolean(source.WHATSAPP_TOKEN && source.WHATSAPP_PHONE_NUMBER_ID && source.WHATSAPP_VERIFY_TOKEN && source.WHATSAPP_APP_SECRET),
+  };
+}
+
 function credentials(): { token: string; phoneId: string } {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;

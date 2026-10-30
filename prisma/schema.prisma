@@ -133,6 +133,7 @@ model Trader {
   whatsappE164          String?  @unique
   whatsappLinkCodeHash  String?
   whatsappLinkExpiresAt DateTime?
+  whatsappVerifiedAt    DateTime?
   bankAccountName       String   @default("")
   bankSortCode          String   @default("")
   bankAccountNumber     String   @default("")
@@ -169,6 +170,7 @@ model Trader {
   priceItems            PriceBookItem[]
   checklist             ChecklistItem[]
   whatsappMessages      WhatsAppMessage[]
+  expenses              Expense[]
   chases                CustomerChase[]
   serviceReminders      ServiceReminder[]
   companyDocuments      CompanyDocument[]
@@ -429,6 +431,50 @@ model WhatsAppReceipt {
   createdAt DateTime @default(now())
 }
 
+enum ExpenseStatus {
+  NEEDS_REVIEW
+  CONFIRMED
+}
+
+enum ExpenseCategory {
+  MATERIALS
+  FUEL
+  TOOLS
+  OTHER
+}
+
+/// A purchase the trader made (materials, fuel, tools). Figures are a record for them and their accountant.
+/// Quotestick does not file this with HMRC.
+model Expense {
+  id             String          @id @default(cuid())
+  traderId       String
+  status         ExpenseStatus   @default(NEEDS_REVIEW)
+  supplier       String          @default("")
+  description    String          @default("")
+  spentOn        DateTime?
+  totalPence     Int?
+  vatPence       Int?
+  category       ExpenseCategory @default(OTHER)
+  extractionNote String          @default("")
+  imageFilename  String          @default("receipt.jpg")
+  imageMime      String          @default("image/jpeg")
+  imageBytes     Bytes
+  source         String          @default("whatsapp")
+  jobId          String?
+  customerId     String?
+  confirmedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  trader         Trader          @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  job            Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([traderId, createdAt])
+  @@index([traderId, status])
+  @@index([jobId])
+  @@index([customerId])
+}
+
 model Customer {
   id         String    @id @default(cuid())
   traderId   String
@@ -446,6 +492,7 @@ model Customer {
   invoices   Invoice[]
   jobs       Job[]
   rams       Rams[]
+  expenses   Expense[]
   serviceReminders ServiceReminder[]
 
   @@index([traderId])
@@ -479,6 +526,7 @@ model Job {
   photos     JobPhoto[]
   chases     CustomerChase[]
   rams       Rams[]
+  expenses   Expense[]
   serviceReminders ServiceReminder[]
 
   @@index([traderId, status])

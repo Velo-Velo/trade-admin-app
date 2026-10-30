@@ -128,7 +128,6 @@ export async function updatePaymentSettings(formData: FormData) {
 export async function createWhatsAppLink() {
   const user = await getCurrentUser();
   if (!user?.trader) redirectWith("/login", "error", "Sign in to continue.");
-  enforceFeature(user, "whatsapp", "/business");
   const trader = user.trader;
   const bytes = randomBytes(6);
   const code = [...bytes].map((byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join("");
@@ -147,7 +146,7 @@ export async function unlinkWhatsApp() {
   if (!trader) redirectWith("/login", "error", "Sign in to continue.");
   await prisma.trader.update({
     where: { id: trader.id },
-    data: { whatsappE164: null, whatsappLinkCodeHash: null, whatsappLinkExpiresAt: null },
+    data: { whatsappE164: null, whatsappLinkCodeHash: null, whatsappLinkExpiresAt: null, whatsappVerifiedAt: null },
   });
   redirectWith("/business", "notice", "WhatsApp number unlinked.");
 }

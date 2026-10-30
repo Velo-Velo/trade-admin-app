@@ -34,6 +34,7 @@ export default async function CustomerPage({
       rams: { where: { isTemplate: false }, orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true } },
       quotes: { orderBy: { createdAt: "desc" } },
       invoices: { orderBy: { createdAt: "desc" } },
+      expenses: { orderBy: { createdAt: "desc" }, select: { id: true, supplier: true, totalPence: true, status: true, spentOn: true } },
     },
   });
   if (!customer) notFound();
@@ -187,6 +188,20 @@ export default async function CustomerPage({
             </a>
           ))
         )}
+      </section>
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">Receipts</h2>
+        {customer.expenses.length === 0 ? <p className="card text-sm text-muted">No receipts linked to this customer yet.</p> : null}
+        {customer.expenses.map((expense) => (
+          <a key={expense.id} href={`/receipts/${expense.id}`} className="card block no-underline">
+            <p className="font-semibold text-ink">{expense.supplier || "Supplier not entered"}</p>
+            <p className="mt-1 text-sm text-muted">
+              {expense.status === "CONFIRMED" ? "Confirmed" : "Needs review"}
+              {expense.spentOn ? ` · ${formatDate(expense.spentOn)}` : ""}
+              {expense.totalPence != null ? ` · ${formatGBP(expense.totalPence)}` : ""}
+            </p>
+          </a>
+        ))}
       </section>
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Quotes</h2>

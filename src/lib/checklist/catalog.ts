@@ -31,7 +31,7 @@ export const CHECKLIST: ChecklistTemplate[] = [
     key: "business-records",
     title: "Keep business records",
     detail:
-      "Keep invoices, receipts and a record of income and costs from day one. You will need them for Self Assessment and, if it applies, Making Tax Digital.",
+      "Keep invoices, receipts and a record of income and costs from day one. You will need them for Self Assessment and, if it applies, Making Tax Digital. Quotestick can store a photo of a receipt for you. It does not file a return with HMRC.",
     officialUrl: "https://www.gov.uk/self-employed-records",
     verifyUrl: "https://www.gov.uk/self-employed-records",
     trades: ["ALL"],

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { isDemoEmail, isDemoSlug } from "@/lib/demo";
 import { firstParam } from "@/lib/format";
 import { ChatLine } from "@/components/chat-line";
-import { simulateVoiceNote, simulateWhatsApp } from "@/server/whatsapp-sim-actions";
+import { simulateReceiptPhoto, simulateVoiceNote, simulateWhatsApp } from "@/server/whatsapp-sim-actions";
 
 export const metadata = { title: "WhatsApp simulator" };
 
@@ -33,7 +33,7 @@ export default async function WhatsAppSimulatorPage({
       <div>
         <h1 className="font-serif text-4xl">WhatsApp simulator</h1>
         <p className="mt-2 text-sm leading-6 text-muted">
-          This is not Meta. Messages stay in Quotestick so you can try drafts, invoices, RAMS and approval. Nothing is sent to a real phone.
+          This is not Meta. Messages stay in Quotestick so you can try drafts, invoices, RAMS, receipt photos and approval. Nothing is sent to a real phone.
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
@@ -73,6 +73,9 @@ export default async function WhatsAppSimulatorPage({
         </form>
         <form action={simulateVoiceNote}>
           <button className={buttonSecondary} type="submit">Sample voice note</button>
+        </form>
+        <form action={simulateReceiptPhoto}>
+          <button className={buttonSecondary} type="submit">Sample receipt photo</button>
         </form>
       </div>
     </div>
