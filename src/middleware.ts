@@ -9,6 +9,7 @@ const PROTECTED = [
   "/quotes",
   "/follow-ups",
   "/invoices",
+  "/receipts",
   "/jobs",
   "/rams",
   "/documents",

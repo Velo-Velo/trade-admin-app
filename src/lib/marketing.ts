@@ -13,6 +13,7 @@ export const PLANS = [
       "A one-page website with your name, trade and area",
       "A start-up checklist, with badges only if you choose to show them",
       "Enquiries, draft quotes, and the booked job when a customer accepts",
+      "Receipt photos from WhatsApp, for you to check. A record for you and your accountant, not a tax return",
       "Nothing is sent until you approve",
     ],
   },
@@ -65,6 +66,6 @@ export const FAQ = [
   },
   {
     q: "What is included before I pay?",
-    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, and the booked job when a quote is accepted. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds receipt prices.",
+    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, and receipt photos on WhatsApp. Trade adds invoices, draft quotes and invoices on WhatsApp, photos, reminders and card payments. The Splitstick bundle adds receipt prices.",
   },
 ] as const;

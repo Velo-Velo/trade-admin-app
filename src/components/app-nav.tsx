@@ -10,6 +10,7 @@ export function AppNav({ slug, showSimulator }: { slug: string; showSimulator: b
     ["/quotes", "Quotes"],
     ["/follow-ups", "Follow-ups"],
     ["/invoices", "Invoices"],
+    ["/receipts", "Receipts"],
     ["/jobs", "Jobs"],
     ["/rams", "RAMS"],
     ["/customers", "Customers"],

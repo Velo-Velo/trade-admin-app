@@ -17,6 +17,7 @@ export type BillingEnv = {
 
 const TRADE_FEATURES = new Set<PaidFeature>([
   "invoices",
+  // Draft quotes, invoices and RAMS over WhatsApp. Receipt photos are not listed: they stay on every plan.
   "whatsapp",
   "photos",
   "chasers",

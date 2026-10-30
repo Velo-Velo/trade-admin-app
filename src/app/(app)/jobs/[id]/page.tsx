@@ -35,6 +35,7 @@ export default async function JobPage({
       quote: { select: { id: true, number: true, status: true } },
       invoice: { select: { id: true, number: true, status: true, totalPence: true } },
       photos: { orderBy: { createdAt: "asc" } },
+      expenses: { orderBy: { createdAt: "desc" }, select: { id: true, supplier: true, totalPence: true, status: true, spentOn: true } },
       rams: { orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true, isTemplate: true } },
     },
   });
@@ -146,6 +147,23 @@ export default async function JobPage({
             Draft a RAMS for this job
           </button>
         </form>
+      </section>
+      <section className="grid gap-3">
+        <h2 className="font-serif text-2xl">Receipts</h2>
+        <p className="text-sm leading-6 text-muted">
+          Purchase receipts linked to this job. The figures are a record for you and your accountant. They are not sent to the customer and they are not filed with HMRC.
+        </p>
+        {job.expenses.length === 0 ? <p className="card text-sm text-muted">No receipts linked to this job yet.</p> : null}
+        {job.expenses.map((expense) => (
+          <a key={expense.id} href={`/receipts/${expense.id}`} className="card block no-underline">
+            <p className="font-semibold text-ink">{expense.supplier || "Supplier not entered"}</p>
+            <p className="mt-1 text-sm text-muted">
+              {expense.status === "CONFIRMED" ? "Confirmed" : "Needs review"}
+              {expense.spentOn ? ` · ${formatDate(expense.spentOn)}` : ""}
+              {expense.totalPence != null ? ` · ${formatGBP(expense.totalPence)}` : ""}
+            </p>
+          </a>
+        ))}
       </section>
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Photos</h2>

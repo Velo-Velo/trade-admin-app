@@ -70,7 +70,7 @@ export async function handleInboundWhatsApp(input: {
       await reply(
         phone,
         linked?.id ?? null,
-        "Send a job description, an invoice such as: Invoice Mrs Jones, replaced tap, £80, or RAMS for a job you already have.",
+        "Send a job description, an invoice such as: Invoice Mrs Jones, replaced tap, £80, RAMS for a job you already have, or a photo of a receipt.",
         input.viaMeta,
         sandbox,
       ),
@@ -87,10 +87,6 @@ export async function handleInboundWhatsApp(input: {
       return replies;
     }
     const linkSandbox = isSandboxTrader({ slug: trader.slug });
-    if (!featureAllowed({ plan: trader.plan, feature: "whatsapp", sandbox: linkSandbox, billingOn: billingConfigured() })) {
-      replies.push(await reply(phone, trader.id, upgradeMessage("whatsapp"), input.viaMeta, linkSandbox));
-      return replies;
-    }
     const taken = await prisma.trader.findUnique({ where: { whatsappE164: phone } });
     if (taken && taken.id !== trader.id) {
       replies.push(await reply(phone, trader.id, "This WhatsApp number is already linked to another Quotestick account.", input.viaMeta, linkSandbox));
@@ -98,13 +94,21 @@ export async function handleInboundWhatsApp(input: {
     }
     await prisma.trader.update({
       where: { id: trader.id },
-      data: { whatsappE164: phone, whatsappLinkCodeHash: null, whatsappLinkExpiresAt: null },
+      data: {
+        whatsappE164: phone,
+        whatsappLinkCodeHash: null,
+        whatsappLinkExpiresAt: null,
+        whatsappVerifiedAt: new Date(),
+      },
     });
+    const drafts = featureAllowed({ plan: trader.plan, feature: "whatsapp", sandbox: linkSandbox, billingOn: billingConfigured() })
+      ? "Send a job for a draft quote, an invoice, or RAMS for a job you already have."
+      : "Draft quotes, invoices and RAMS on WhatsApp are on the Trade plan.";
     replies.push(
       await reply(
         phone,
         trader.id,
-        `Linked to ${trader.businessName}. Send a job for a draft quote, an invoice, or RAMS for a job you already have.`,
+        `Linked to ${trader.businessName}. This phone is verified for this account. Send a photo of a receipt and it is saved for you to check. ${drafts}`,
         input.viaMeta,
         linkSandbox,
       ),

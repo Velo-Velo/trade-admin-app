@@ -14,6 +14,7 @@ import { TRADES } from "@/lib/trades";
 import { SITE_THEME_CHOICES } from "@/lib/site-theme";
 import { updateBusiness, updateSiteTheme } from "@/server/business-actions";
 import { updateFollowUpSettings } from "@/server/chase-actions";
+import { whatsappConnection } from "@/lib/whatsapp/client";
 import { createWhatsAppLink, unlinkWhatsApp, updatePaymentSettings } from "@/server/invoice-actions";
 import { refreshStripeConnect, startStripeConnect } from "@/server/stripe-actions";
 
@@ -237,10 +238,13 @@ export default async function BusinessPage({
       </section>
       <section className="grid gap-3 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">WhatsApp</h2>
+        <p className="text-sm leading-6">
+          {whatsappConnection().connected ? "WhatsApp is connected." : "WhatsApp is not connected."}
+        </p>
         <p className="text-sm leading-6 text-muted">
-          {trader.whatsappE164
-            ? `Linked number +${trader.whatsappE164}. Messages to the Quotestick WhatsApp number from this phone create drafts.`
-            : "Create a code, then send LINK and the code from your own WhatsApp to the Quotestick number."}
+          {trader.whatsappVerifiedAt && trader.whatsappE164
+            ? `Linked number +${trader.whatsappE164}. A photo of a receipt from this phone is saved for you to check. It works on every plan.`
+            : "Create a code, then send LINK and the code from your own WhatsApp. That verifies the number, so a receipt cannot be filed on the wrong account."}
         </p>
         <form action={createWhatsAppLink}>
           <button className={buttonSecondary} type="submit">Create a link code</button>

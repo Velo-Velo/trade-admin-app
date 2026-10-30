@@ -15,6 +15,7 @@ This app does not give legal, tax or insurance advice. The cancellation wording 
 - Get a public page at `/t/your-name` with services, area, registration badges and an enquiry form.
 - Turn each enquiry into a **draft** quote (labour and materials). A language model can adjust the draft when `OPENAI_API_KEY` is set. Without that key, a matching job template is used. If nothing matches, the draft is a blank allowance.
 - Keep a price book. When a line matches a row, the quote uses your sell price and shows **last paid** where you have entered it.
+- Photograph a receipt and send it on WhatsApp, or add the photo under **Receipts**. Check the supplier, date, total and any VAT shown, then confirm. This is a record for you and your accountant. It is not filed with HMRC.
 - Approve the quote. Only then can the customer open `/q/…`, accept it, and (if Stripe keys are set) pay a deposit.
 - Tick off a start-up checklist. Items you mark done, with a number, can show as badges. Quotestick does not check Gas Safe, NICEIC or any other register.
 
@@ -147,7 +148,17 @@ With `DEMO_MODE=true`, sign in with **Try the demo**. **Follow-ups** already has
 6. Set the webhook URL to `https://<your-app>/api/whatsapp/webhook` and subscribe to the **messages** field.
 7. Deploy again so the env vars are present. Send `LINK` and the code from **Your page**.
 
-Leave all four WhatsApp variables empty if you only want the simulator. The webhook then refuses posts until the app secret is set, which stops unsigned requests being accepted.
+Leave all four WhatsApp variables empty if you only want the simulator. The webhook then refuses posts until the app secret is set, which stops unsigned requests being accepted. **Receipts** shows “WhatsApp is not connected” until all four are set. The rest of the app still runs, and a trader can add a receipt photo on that page.
+
+### Receipt photos
+
+A trader photographs a receipt (materials, fuel, tools) and sends it to the Quotestick WhatsApp number from the phone they have linked. Quotestick saves the photo as a receipt that needs checking. When `OPENAI_API_KEY` is set, it tries to read the supplier, date, total and any VAT printed on the receipt. The model is `OPENAI_MODEL`, which defaults to `gpt-4o-mini` (that model can read a photo). If the key is missing, the model fails, or a figure is unreadable, the photo is still saved and the trader types the figures. VAT is left blank when the receipt does not print it. Quotestick does not work it out, and it does not file anything with HMRC. The figures are a record for the trader and their accountant.
+
+A caption such as `for the outside tap` links the receipt when it matches one job. If it matches more than one, or there is no caption, the trader chooses the job or customer on the receipt. Receipt photos are on every plan, including Free. Draft quotes, invoices and RAMS on WhatsApp stay on Trade once billing is switched on.
+
+The number is verified before a photo can be filed. On **Your page**, create a link code, then from that phone send `LINK` and the code. The code lasts 30 minutes and is stored only as a hash. The WhatsApp number has to be unique. A photo from any other number is refused and is not attached to an account.
+
+On the sample account, open **WhatsApp** and use **Sample receipt photo**, or open **Receipts**. That sample does not call Meta or OpenAI.
 
 ## Deploy on Render
 
@@ -184,7 +195,7 @@ Every variable is listed in `.env.example`.
 | `DATABASE_URL` | Yes | Postgres connection string. Render fills this in. |
 | `SESSION_SECRET` | Yes in production | Signs session cookies. At least 16 characters. |
 | `APP_URL` | Yes for links in emails | Public site URL, no trailing slash. |
-| `OPENAI_API_KEY` | No | Adjusts draft quote wording. Templates are used when this is empty. |
+| `OPENAI_API_KEY` | No | Adjusts draft quote wording, transcribes voice notes, and reads receipt photos. Templates, typed notes, and a stored photo are used when this is empty. |
 | `OPENAI_MODEL` | No | Defaults to `gpt-4o-mini`. |
 | `STRIPE_SECRET_KEY` | No | Stripe secret key. Test key first (`sk_test_...`). Hides card buttons when empty. |
 | `STRIPE_WEBHOOK_SECRET` | No | Signing secret for the Your account event destination on `POST /api/stripe/webhook`. |
@@ -259,7 +270,7 @@ Deposits and invoice payments use Stripe Checkout on the trader's connected acco
 
 The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
 
-Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, and RAMS. Trade adds invoices, WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
+Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, RAMS, and receipt photos on WhatsApp. Trade adds invoices, draft quotes and invoices on WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
 
 The webhook is `POST /api/stripe/webhook`. Create the event destinations below and give each that same URL. Each destination has its own signing secret.
 

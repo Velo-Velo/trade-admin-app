@@ -96,6 +96,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         quoteSeq: 0,
         invoiceSeq: 0,
         whatsappE164: "447700900100",
+        whatsappVerifiedAt: new Date(),
         bankAccountName: "Sample Harbour Heating",
         bankSortCode: "00-00-00",
         bankAccountNumber: "00000000",
@@ -675,6 +676,27 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       pdfUrl: `${origin}/api/rams/${sampleRams.id}/pdf`,
     });
 
+    const sampleReceipt = await tx.expense.create({
+      data: {
+        traderId: trader.id,
+        status: "NEEDS_REVIEW",
+        supplier: "Sample Merchants",
+        description: "15mm copper pipe",
+        spentOn: daysAgo(2),
+        totalPence: 1860,
+        vatPence: 310,
+        category: "MATERIALS",
+        extractionNote:
+          "Read from the photo. Check the supplier, date, total and VAT before you confirm. This sample is not a real receipt.",
+        imageFilename: "sample-receipt.jpg",
+        imageMime: "image/jpeg",
+        imageBytes: photoBytes(samplePhotos.receipt),
+        source: "whatsapp",
+        jobId: outsideTap.id,
+        customerId: riley.id,
+      },
+    });
+
     const phone = "447700900100";
     await tx.whatsAppMessage.createMany({
       data: [
@@ -706,6 +728,27 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
           body: ramsCopy.traderText,
           createdAt: daysAgo(1),
         },
+        {
+          traderId: trader.id,
+          phone,
+          direction: "in",
+          body: "Receipt photo. Sample Merchants, copper pipe, for the outside tap",
+          createdAt: daysAgo(1),
+        },
+        {
+          traderId: trader.id,
+          phone,
+          direction: "out",
+          body: [
+            "Receipt photo saved.",
+            "Sample Merchants, 15mm copper pipe.",
+            "VAT shown on the receipt: £3.10.",
+            "Linked to Outside tap is dripping.",
+            `Check it here: ${origin}/receipts/${sampleReceipt.id}`,
+            "This is a record for you and your accountant. Quotestick does not file it with HMRC and it is not tax advice.",
+          ].join("\n"),
+          createdAt: daysAgo(1),
+        },
       ],
     });
   }, { timeout: 30_000 });
@@ -721,6 +764,7 @@ async function sampleJobPhotos(): Promise<{
   beforeTap: Buffer;
   afterTap: Buffer;
   basin: Buffer;
+  receipt: Buffer;
 }> {
   const sharp = (await import("sharp")).default;
   async function card(red: number, green: number, blue: number, band: number): Promise<Buffer> {
@@ -736,12 +780,13 @@ async function sampleJobPhotos(): Promise<{
       .toBuffer();
     return sharp(base).composite([{ input: stripe, top: 36, left: 0 }]).jpeg({ quality: 70 }).toBuffer();
   }
-  const [cistern, outside, beforeTap, afterTap, basin] = await Promise.all([
+  const [cistern, outside, beforeTap, afterTap, basin, receipt] = await Promise.all([
     card(210, 196, 168, 90),
     card(168, 196, 184, 40),
     card(196, 168, 160, 70),
     card(176, 196, 170, 230),
     card(170, 186, 204, 30),
+    card(232, 214, 176, 60),
   ]);
-  return { cistern, outside, beforeTap, afterTap, basin };
+  return { cistern, outside, beforeTap, afterTap, basin, receipt };
 }
