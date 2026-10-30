@@ -7,7 +7,9 @@ export type PaidFeature =
   | "chasers"
   | "card_payments"
   | "manual_jobs"
-  | "splitstick";
+  | "splitstick"
+  | "diary"
+  | "cis";
 
 export type BillingEnv = {
   STRIPE_SECRET_KEY?: string;
@@ -23,7 +25,10 @@ const TRADE_FEATURES = new Set<PaidFeature>([
   "chasers",
   "card_payments",
   "manual_jobs",
+  "diary",
 ]);
+// CIS deductions and the accountant statement are on the Splitstick bundle only.
+// featureAllowed returns true for every feature on that plan. Receipt photos stay ungated.
 
 function readBillingEnv(env?: BillingEnv): BillingEnv {
   if (env) return env;
@@ -92,6 +97,12 @@ export function sendBlockReason(input: { emailVerifiedAt: Date | null; sandbox: 
 export function upgradeMessage(feature: PaidFeature): string {
   if (feature === "splitstick") {
     return "Receipt prices are on the Splitstick bundle. Open Plans. Nothing was changed.";
+  }
+  if (feature === "cis") {
+    return "CIS records are on the Splitstick bundle. Open Plans. Nothing was filed.";
+  }
+  if (feature === "diary") {
+    return "The diary is on the Trade plan. Open Plans. Nothing was changed.";
   }
   return "That is on the Trade plan. Open Plans to switch it on. Nothing was sent.";
 }

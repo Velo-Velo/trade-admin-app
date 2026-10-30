@@ -42,6 +42,7 @@ export default async function JobsPage({
     include: {
       customer: true,
       invoice: { select: { status: true, number: true } },
+      visits: { orderBy: { scheduledFor: "asc" }, select: { id: true, scheduledFor: true, scheduledTime: true } },
       _count: { select: { photos: true, rams: true } },
     },
   });
@@ -68,7 +69,7 @@ export default async function JobsPage({
       <div>
         <h1 className="font-serif text-4xl">Jobs</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          Tap a button to move a job. An accepted quote lands in Booked. Invoiced and Paid follow the invoice, and nothing is sent to the customer from this board.
+          Tap a button to move a job. An accepted quote lands in Booked. Invoiced and Paid follow the invoice, and nothing is sent to the customer from this board. <a href="/diary">Open the diary</a> for visit dates. Service reminders show there too, and they do not book the visit.
         </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
@@ -118,6 +119,8 @@ export default async function JobsPage({
               {cards.length === 0 ? <p className="card text-sm text-muted">Nothing in this column.</p> : null}
               {cards.map((job) => {
                 const marker = invoiceMarker(job.invoice?.status);
+                const today = now.toISOString().slice(0, 10);
+                const nextVisit = job.visits.find((visit) => visit.scheduledFor.toISOString().slice(0, 10) >= today) ?? job.visits.at(-1);
                 return (
                   <article key={job.id} className="card grid gap-3">
                     <div>
@@ -131,6 +134,13 @@ export default async function JobsPage({
                       </p>
                       {job.recurring && job.serviceDueAt ? (
                         <p className="mt-1 text-sm text-muted">Service due {formatDate(job.serviceDueAt)}</p>
+                      ) : null}
+                      {nextVisit ? (
+                        <p className="mt-1 text-sm text-muted">
+                          Visit {formatDate(nextVisit.scheduledFor)}
+                          {nextVisit.scheduledTime ? ` at ${nextVisit.scheduledTime}` : ""}
+                          {job.visits.length > 1 ? ` · ${job.visits.length} visits` : ""}
+                        </p>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-semibold">

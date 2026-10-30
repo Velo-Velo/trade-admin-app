@@ -26,7 +26,9 @@ export default async function InvoicesPage({
     <div className="grid gap-5">
       <div>
         <h1 className="font-serif text-4xl">Invoices</h1>
-        <p className="mt-2 text-sm text-muted">A draft stays with you until you approve it.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+          A draft stays with you until you approve it. <a href="/cis">CIS records</a> are a statement for your accountant. They are not filed with HMRC.
+        </p>
       </div>
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
       <form action={createInvoiceFromText} className="card grid gap-3">
@@ -52,7 +54,9 @@ export default async function InvoicesPage({
                   <StatusPill status={invoice.status} />
                 </div>
                 <p className="mt-2 text-sm text-muted">{invoice.description}</p>
-                <p className="mt-3 font-semibold">{formatGBP(invoice.totalPence)}</p>
+                <p className="mt-3 font-semibold">
+                  {invoice.cisApplies ? `Pay ${formatGBP(invoice.amountDuePence)} · CIS ${invoice.cisRate}%` : formatGBP(invoice.totalPence)}
+                </p>
               </a>
             </li>
           ))}

@@ -106,6 +106,12 @@ describe("plans", () => {
     expect(featureAllowed({ plan: "FREE", feature: "invoices", billingOn: true })).toBe(false);
     expect(featureAllowed({ plan: "FREE", feature: "whatsapp", billingOn: true, sandbox: true })).toBe(true);
     expect(featureAllowed({ plan: "TRADE", feature: "invoices", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "TRADE", feature: "diary", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "TRADE", feature: "cis", billingOn: true })).toBe(false);
+    expect(featureAllowed({ plan: "FREE", feature: "diary", billingOn: true })).toBe(false);
+    expect(featureAllowed({ plan: "FREE", feature: "cis", billingOn: true })).toBe(false);
+    expect(featureAllowed({ plan: "SPLITSTICK", feature: "cis", billingOn: true })).toBe(true);
+    expect(featureAllowed({ plan: "SPLITSTICK", feature: "diary", billingOn: true })).toBe(true);
     expect(featureAllowed({ plan: "TRADE", feature: "splitstick", billingOn: true })).toBe(false);
     expect(featureAllowed({ plan: "SPLITSTICK", feature: "splitstick", billingOn: true })).toBe(true);
   });

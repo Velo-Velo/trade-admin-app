@@ -7,6 +7,9 @@ import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
 import { linkJobInvoice, moveJob, setJobPhotoPublic, updateJobService, uploadJobPhotos } from "@/server/job-actions";
+import { addJobVisit, deleteJobVisit } from "@/server/diary-actions";
+import { billingConfigured, featureAllowed } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { createRams } from "@/server/rams-actions";
 
 export const metadata = { title: "Job" };
@@ -37,6 +40,7 @@ export default async function JobPage({
       photos: { orderBy: { createdAt: "asc" } },
       expenses: { orderBy: { createdAt: "desc" }, select: { id: true, supplier: true, totalPence: true, status: true, spentOn: true } },
       rams: { orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true, isTemplate: true } },
+      visits: { orderBy: { scheduledFor: "asc" } },
     },
   });
   if (!job) notFound();
@@ -46,6 +50,12 @@ export default async function JobPage({
     select: { id: true, number: true, status: true, totalPence: true },
   });
   const marker = invoiceMarker(job.invoice?.status);
+  const diaryOn = featureAllowed({
+    plan: user.trader.plan,
+    feature: "diary",
+    sandbox: isSandboxTrader({ slug: user.trader.slug, email: user.email }),
+    billingOn: billingConfigured(),
+  });
   const moves = JOB_STATUSES.filter((status) => canMoveJob(job.status, status));
 
   return (
@@ -82,6 +92,52 @@ export default async function JobPage({
             </button>
           </form>
         ))}
+      </section>
+      <section className="card grid gap-3">
+        <h2 className="font-serif text-2xl">Visits</h2>
+        <p className="text-sm leading-6 text-muted">
+          Dates in the <a href="/diary">diary</a>. They are not sent to the customer. A repeating service further down is a reminder, not a visit.
+        </p>
+        {job.visits.length === 0 ? <p className="text-sm text-muted">No visit booked yet.</p> : null}
+        {job.visits.map((visit) => (
+          <div key={visit.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <p>
+              {formatDate(visit.scheduledFor)}
+              {visit.scheduledTime ? ` at ${visit.scheduledTime}` : ""}
+              {visit.note ? ` · ${visit.note}` : ""}
+            </p>
+            {diaryOn ? (
+              <form action={deleteJobVisit}>
+                <input type="hidden" name="visitId" value={visit.id} />
+                <input type="hidden" name="returnTo" value={`/jobs/${job.id}`} />
+                <button className={buttonSecondary} type="submit">Remove</button>
+              </form>
+            ) : null}
+          </div>
+        ))}
+        {diaryOn ? (
+          <form action={addJobVisit} className="grid gap-3">
+            <input type="hidden" name="jobId" value={job.id} />
+            <input type="hidden" name="returnTo" value={`/jobs/${job.id}`} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelClass}>
+                Date
+                <input className={inputClass} name="scheduledFor" type="date" required />
+              </label>
+              <label className={labelClass}>
+                Time
+                <input className={inputClass} name="scheduledTime" type="time" />
+              </label>
+            </div>
+            <label className={labelClass}>
+              Note
+              <input className={inputClass} name="note" placeholder="Optional" />
+            </label>
+            <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Add visit</button>
+          </form>
+        ) : (
+          <p className="text-sm leading-6">The diary is on the Trade plan. <a href="/billing">Open Plans</a>.</p>
+        )}
       </section>
       <form action={updateJobService} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Repeating service</h2>

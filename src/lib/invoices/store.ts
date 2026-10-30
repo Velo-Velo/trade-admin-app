@@ -10,6 +10,7 @@ import { approveInvoiceDraft, customerInvoicePath } from "@/lib/invoices/approva
 import { splitVat } from "@/lib/invoices/vat";
 import type { ParsedInvoice } from "@/lib/invoices/parse";
 import { paymentNote } from "@/lib/whatsapp/plan";
+import { cisDeductionPence, suggestedCis } from "@/lib/cis/calc";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -32,6 +33,20 @@ export async function createDraftInvoice(input: {
       name: input.parsed.customerName,
       contact: input.parsed.contact,
     });
+    const suggestion = suggestedCis({
+      traderStatus: trader.cisStatus,
+      customerDeducts: customer.deductsCis,
+      customerOverride: customer.cisRateOverride,
+    });
+    const allowCis = featureAllowed({
+      plan: trader.plan,
+      feature: "cis",
+      sandbox: isSandboxTrader({ slug: trader.slug }),
+      billingOn: billingConfigured(),
+    });
+    const applyCis = allowCis && suggestion.applies;
+    const cisRate = applyCis ? suggestion.rate : 0;
+    const deduction = applyCis ? cisDeductionPence(amounts.netPence, cisRate) : 0;
     const openJobs = await tx.job.findMany({
       where: { traderId: trader.id, customerId: customer.id },
       select: { id: true, invoiceId: true },
@@ -50,6 +65,12 @@ export async function createDraftInvoice(input: {
         vatPence: amounts.vatPence,
         totalPence: amounts.totalPence,
         vatRate: amounts.vatRate,
+        labourPence: amounts.netPence,
+        materialsPence: 0,
+        cisApplies: applyCis,
+        cisRate,
+        cisDeductionPence: deduction,
+        amountDuePence: amounts.totalPence - deduction,
         publicToken: newToken(),
         reviewToken: newToken(),
         dueAt,
@@ -67,7 +88,9 @@ export async function createDraftInvoice(input: {
           create: {
             type: "draft_created",
             channel: input.source,
-            detail: "Draft invoice. Not sent to the customer.",
+            detail: applyCis
+              ? "Draft invoice. A CIS deduction is recorded from the customer setting. Check the labour and materials before you approve. Not sent to the customer or to HMRC."
+              : "Draft invoice. Not sent to the customer.",
           },
         },
       },

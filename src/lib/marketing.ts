@@ -25,6 +25,7 @@ export const PLANS = [
       "Invoices, PDFs and payment reminders",
       "WhatsApp in, a draft quote or invoice out",
       "Job photos, quote follow-ups and service reminders",
+      "A diary of booked visits. Service dates show separately and do not book the job",
       "Card payments to your own Stripe account",
     ],
   },
@@ -35,6 +36,7 @@ export const PLANS = [
     points: [
       "Everything in Trade",
       "Last-paid prices from Splitstick receipts, when that connection is switched on",
+      "CIS deductions on invoices, on the labour only, and a statement for your accountant. Not filed with HMRC",
       "The price book still waits for you. A receipt does not send a quote",
     ],
   },
@@ -66,6 +68,10 @@ export const FAQ = [
   },
   {
     q: "What is included before I pay?",
-    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, and receipt photos on WhatsApp. Trade adds invoices, draft quotes and invoices on WhatsApp, photos, reminders and card payments. The Splitstick bundle adds receipt prices.",
+    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, and receipt photos on WhatsApp. Trade adds invoices, draft quotes and invoices on WhatsApp, photos, reminders, card payments and a diary of visits. The Splitstick bundle adds receipt prices and CIS deduction records. Those figures are for you and your accountant. They are not filed with HMRC.",
+  },
+  {
+    q: "Does Quotestick file CIS or a tax return?",
+    a: "No. On the Splitstick bundle you can record a CIS deduction on an invoice. It is a percentage of the labour, not the materials or the VAT. You can download a statement for your accountant. Quotestick does not send it to HMRC and it does not give tax advice.",
   },
 ] as const;

@@ -11,6 +11,7 @@ import {
 import { redirect } from "next/navigation";
 import { isNextRedirect, redirectWith } from "@/lib/redirects";
 import { billingConfigured } from "@/lib/billing/plans";
+import { amountCustomerPays } from "@/lib/cis/calc";
 import { connectedCheckoutArgs } from "@/lib/payments/checkout";
 import { cardButtonVisible } from "@/lib/payments/connect-status";
 import { platformFeePence } from "@/lib/payments/fee";
@@ -155,12 +156,13 @@ export async function startInvoicePayment(formData: FormData) {
     redirectWith(`/i/${token}`, "error", "This invoice is not available.");
   }
   if (invoice.paidAt || invoice.status === "PAID") redirect(`/i/${token}`);
-  if (invoice.totalPence <= 0) {
+  const payable = amountCustomerPays(invoice);
+  if (payable <= 0) {
     redirectWith(`/i/${token}`, "notice", "There is nothing to pay on this invoice.");
   }
   await openConnectedCheckout({
     path: `/i/${token}`,
-    amountPence: invoice.totalPence,
+    amountPence: payable,
     name: `Invoice ${invoice.number}`,
     description: invoice.businessName,
     metadata: { invoiceId: invoice.id },

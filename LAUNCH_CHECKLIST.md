@@ -9,6 +9,8 @@ Prices below were read from [Render pricing](https://render.com/pricing) and [Re
 - Card is the only payment method requested. Apple Pay and Google Pay can appear inside Checkout. Bacs is not requested.
 - The webhook marks a deposit or an invoice paid. The job board then shows Paid, and payment reminders stop. Plan events use `STRIPE_WEBHOOK_SECRET`. Deposit and invoice events use `STRIPE_CONNECT_WEBHOOK_SECRET`. Both destinations use the same URL.
 - Plans: Free, Trade at £11.99 a month, Splitstick bundle at £16.99 a month. Checkout and the customer portal are used once price ids are set. Until then, upgrade buttons stay hidden and paid features stay available.
+- Diary of booked visits on Trade (and the Splitstick bundle). Service reminder dates show on the same calendar and are labelled as reminders, not bookings.
+- CIS deduction records on the Splitstick bundle: the rate you choose (0%, 20% or 30%) on labour only, shown on the invoice PDF, plus a CSV and PDF statement for an accountant. Nothing is filed with HMRC. Receipt photos stay on every plan. Quote deposits and the platform fee are unchanged.
 - Free keeps the public page, checklist, enquiries, quotes, customers from those quotes, and the booked job created when a quote is accepted.
 - **Try the demo** works when `DEMO_MODE` is false. It resets only the fictional sample trader. That account does not send real email, WhatsApp or payments.
 - `npm start` still resets the sample trader only when `DEMO_MODE` is exactly `true`.

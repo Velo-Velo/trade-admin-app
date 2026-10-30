@@ -35,8 +35,16 @@ export function chaserCopy(input: {
   dueAt: Date;
   paymentUrl: string | null;
   invoiceUrl: string;
+  cisApplies?: boolean;
+  cisDeductionPence?: number;
+  amountDuePence?: number;
 }): { subject: string; text: string } {
-  const amount = formatGBP(input.totalPence);
+  const payable = input.cisApplies ? (input.amountDuePence ?? input.totalPence) : input.totalPence;
+  const amount = formatGBP(payable);
+  const cisLine =
+    input.cisApplies && (input.cisDeductionPence ?? 0) > 0
+      ? `This invoice records a CIS deduction of ${formatGBP(input.cisDeductionPence ?? 0)}. The amount above is what to pay this business. Quotestick has not sent the deduction to HMRC.`
+      : "";
   const due = formatDate(input.dueAt);
   const pay = input.paymentUrl
     ? `Card link: ${input.paymentUrl}`
@@ -49,6 +57,7 @@ export function chaserCopy(input: {
         `Hello ${input.customerName},`,
         "",
         `Invoice ${input.number} from ${input.businessName} for ${amount} is due on ${due}.`,
+        ...(cisLine ? [cisLine] : []),
         pay,
         link,
         "",
@@ -63,6 +72,7 @@ export function chaserCopy(input: {
         `Hello ${input.customerName},`,
         "",
         `Invoice ${input.number} from ${input.businessName} for ${amount} was due on ${due} and is still unpaid.`,
+        ...(cisLine ? [cisLine] : []),
         "Please pay it when you can, or reply if something on the invoice is wrong.",
         pay,
         link,
@@ -75,6 +85,7 @@ export function chaserCopy(input: {
       `Hello ${input.customerName},`,
       "",
       `We still have not received payment for invoice ${input.number} from ${input.businessName} (${amount}), which was due on ${due}.`,
+      ...(cisLine ? [cisLine] : []),
       "Please pay today, or contact us so we can sort it out.",
       pay,
       link,

@@ -58,6 +58,14 @@ enum InvoiceStatus {
   PAID
 }
 
+/// The trader's own CIS rate, stored for their records. Quotestick does not check it with HMRC.
+enum CisStatus {
+  NOT_USED
+  GROSS
+  STANDARD
+  HIGHER
+}
+
 enum JobStatus {
   BOOKED
   IN_PROGRESS
@@ -140,6 +148,8 @@ model Trader {
   tradingAddress        String   @default("")
   vatRegistered         Boolean  @default(false)
   vatNumber             String   @default("")
+  cisStatus             CisStatus @default(NOT_USED)
+  cisUtr                String   @default("")
   googleReviewUrl       String   @default("")
   reviewChasersEnabled  Boolean  @default(true)
   quoteChasersEnabled   Boolean  @default(true)
@@ -175,6 +185,7 @@ model Trader {
   serviceReminders      ServiceReminder[]
   companyDocuments      CompanyDocument[]
   rams                  Rams[]
+  jobVisits             JobVisit[]
 }
 
 model Enquiry {
@@ -362,6 +373,13 @@ model Invoice {
   vatPence            Int
   totalPence          Int
   vatRate             Int           @default(0)
+  /// Labour and materials are ex VAT. CIS, when recorded, is a percentage of labour only.
+  labourPence         Int           @default(0)
+  materialsPence      Int           @default(0)
+  cisApplies          Boolean       @default(false)
+  cisRate             Int           @default(0)
+  cisDeductionPence   Int           @default(0)
+  amountDuePence      Int           @default(0)
   publicToken         String        @unique
   dueAt               DateTime
   chaserEnabled       Boolean       @default(true)
@@ -399,6 +417,7 @@ model Invoice {
   @@index([dueAt])
   @@index([stripePaymentLinkId])
   @@index([customerId])
+  @@index([traderId, cisApplies])
 }
 
 model InvoiceEvent {
@@ -483,6 +502,9 @@ model Customer {
   email      String    @default("")
   postcode   String    @default("")
   address    String    @default("")
+  deductsCis Boolean   @default(false)
+  /// Null uses the trader's own CIS status. 0, 20 or 30 overrides it for this customer.
+  cisRateOverride Int?
   searchText String
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -528,10 +550,27 @@ model Job {
   rams       Rams[]
   expenses   Expense[]
   serviceReminders ServiceReminder[]
+  visits     JobVisit[]
 
   @@index([traderId, status])
   @@index([customerId])
   @@index([serviceDueAt])
+}
+
+/// One booked visit on a job. A service reminder is not a visit.
+model JobVisit {
+  id            String   @id @default(cuid())
+  traderId      String
+  jobId         String
+  scheduledFor  DateTime
+  scheduledTime String   @default("")
+  note          String   @default("")
+  createdAt     DateTime @default(now())
+  trader        Trader   @relation(fields: [traderId], references: [id], onDelete: Cascade)
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([traderId, scheduledFor])
+  @@index([jobId])
 }
 
 model CustomerChase {

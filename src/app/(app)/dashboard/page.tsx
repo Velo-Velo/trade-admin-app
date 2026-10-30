@@ -74,6 +74,13 @@ export default async function DashboardPage() {
         </div>
         <a href="/follow-ups" className="text-sm font-semibold">Open the queue</a>
       </section>
+      <section className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-2xl">Diary</h2>
+          <p className="mt-1 text-sm text-muted">Booked visits, plus service dates. A reminder does not book the job.</p>
+        </div>
+        <a href="/diary" className="text-sm font-semibold">Open the diary</a>
+      </section>
       <section className="grid gap-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-serif text-2xl">Upcoming reminders</h2>
