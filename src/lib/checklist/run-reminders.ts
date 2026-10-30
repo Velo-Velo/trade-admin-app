@@ -13,6 +13,7 @@ export async function runReminders(now = new Date()): Promise<{
   invoicesSent: number;
   reviewsDue: number;
   reviewsSent: number;
+  quotesExpired: number;
   quotesQueued: number;
   quotesSent: number;
   servicesQueued: number;
@@ -59,7 +60,7 @@ export async function runReminders(now = new Date()): Promise<{
 
   const followUps = await runFollowUps(now);
   console.info(
-    `[reminders] due=${due} sent=${sent} stubbed=${stubbed} failed=${failed} invoicesDue=${followUps.invoicesDue} invoicesSent=${followUps.invoicesSent} reviewsDue=${followUps.reviewsDue} reviewsSent=${followUps.reviewsSent} quotesQueued=${followUps.quotesQueued} quotesSent=${followUps.quotesSent} servicesQueued=${followUps.servicesQueued} servicesSent=${followUps.servicesSent}`,
+    `[reminders] due=${due} sent=${sent} stubbed=${stubbed} failed=${failed} invoicesDue=${followUps.invoicesDue} invoicesSent=${followUps.invoicesSent} reviewsDue=${followUps.reviewsDue} reviewsSent=${followUps.reviewsSent} quotesExpired=${followUps.quotesExpired} quotesQueued=${followUps.quotesQueued} quotesSent=${followUps.quotesSent} servicesQueued=${followUps.servicesQueued} servicesSent=${followUps.servicesSent}`,
   );
   return { due, sent, stubbed, failed, ...followUps };
 }

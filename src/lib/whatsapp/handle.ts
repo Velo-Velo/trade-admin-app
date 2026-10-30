@@ -8,6 +8,7 @@ import { parseInvoiceText } from "@/lib/invoices/parse";
 import { renderInvoicePdf } from "@/lib/invoices/pdf";
 import { billingConfigured, featureAllowed, sendBlockReason, upgradeMessage } from "@/lib/billing/plans";
 import { isSandboxTrader } from "@/lib/sandbox";
+import { quoteExpiresAt } from "@/lib/chasers/plan";
 import { approveDraft, deliveryForCustomer } from "@/lib/quotes/approval";
 import { sendWhatsAppDocument, sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp/client";
 import { interpretInbound, normaliseWhatsAppNumber } from "@/lib/whatsapp/interpret";
@@ -319,6 +320,7 @@ async function approveQuote(traderId: string, number: string, origin: string): P
       status: next,
       approvedAt: now,
       sentAt: now,
+      expiresAt: quoteExpiresAt(now, quote.trader.quoteValidDays),
       reviewToken: quote.reviewToken ?? newToken(),
     },
   });

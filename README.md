@@ -101,11 +101,11 @@ The same daily job that checks the compliance checklist also sends these reminde
 
 **Jobs** is a three-column board: Booked, In progress and Done. Tap a button to move a job. There is no drag. When a customer accepts a quote, Quotestick adds a Booked job. If that job is linked to an invoice, the card shows Invoiced once the invoice is sent, or Paid once it is paid. A draft invoice stays marked as not sent.
 
-**Customers** has a search box. Type part of a name, phone, email, postcode or address. Open a customer to see their jobs, quotes and invoices.
+**Customers** has a search box. Type part of a name, phone, email, postcode or address. Open a customer to see their jobs, quotes, invoices, and yearly service reminders.
 
 On a job, add before and after photos from a phone camera or photo library. Pictures the customer attached to the enquiry are copied onto the job when it is booked. Photos are stored in the database, the same way enquiry photos are, and they are resized and compressed on upload so a free Render database can hold them. Job photos are not shown to the customer.
 
-With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon.
+With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon, and a gas safety check due later in the year.
 
 ## RAMS
 
@@ -127,15 +127,15 @@ With `DEMO_MODE=true`, the sample trader has a draft RAMS on the outside-tap job
 
 ## Quote follow-ups and service reminders
 
-A sent quote that has not been accepted or declined gets a polite follow-up after the number of days on **Your page** (3 by default). A second note can follow later (on by default, at 7 days when the first wait is shorter than that). Both land in **Follow-ups**. The trader taps Send. Nothing goes to the customer until then, unless **Auto-send quote chasers and service reminders** is switched on. That switch is off by default.
+A sent quote that has not been accepted or declined gets a polite follow-up after the number of days on **Your page** (3 by default), then a second note (on by default, at 7 days). You can turn chasing off for the whole business, or for one quote. Both notes land in **Follow-ups**, and you get an email when one is ready. The customer is not messaged until you tap Send, unless **Auto-send quote chasers and service reminders to the customer** is switched on. That switch is off by default.
 
-The note is emailed when the customer has an email address. It is also sent on WhatsApp when Meta is connected and the customer has a mobile number. In demo mode, with no Meta keys, the same note appears in the WhatsApp simulator on the trader’s linked number. Chasing stops when the customer accepts or declines, or when the trader marks the quote lost.
+The customer note is emailed when they have an email address. It is also sent on WhatsApp when Meta is connected and they have a mobile number. In demo mode, with no Meta keys, the same note appears in the WhatsApp simulator on the trader’s linked number. Chasing stops when the customer accepts or declines, when the trader marks the quote lost, or when the quote expires. New quotes stay open for 30 days unless you change that on **Your page** (0 means they do not expire). After that the customer can still open the link, but they cannot accept it.
 
-On a job, tick **This job repeats**, set the gap in months (12 by default) and the next due date. Marking a repeating job done sets the next due date from that gap. **Due soon** on the dashboard and the job board lists services inside the lead time (4 weeks by default). The customer page shows the service due date. The reminder invites them to the trader’s enquiry page and says it does not book the visit. It uses the same Follow-ups queue, the same email and WhatsApp paths, and the same auto-send switch.
+On a job, tick **This job repeats**, set the gap in months (12 by default) and the next due date. Marking a repeating job done sets the next due date from that gap. On a customer, add a reminder such as a gas safety check. The due date starts at 12 months after the last finished job, or 12 months from today if there is not one yet. **Upcoming reminders** on the dashboard and **Follow-ups** lists services due in the next 18 months. **Due soon** on the job board lists ones inside the lead time (4 weeks by default). The reminder invites them to the trader’s enquiry page and says it does not book the visit. It uses the same Follow-ups queue, the same email and WhatsApp paths, and the same auto-send switch. You are emailed when it is ready, whether or not the customer is messaged.
 
 The daily reminder job creates these notes: `npm run reminders`, or `GET /api/cron/reminders` with `Authorization: Bearer <CRON_SECRET>`.
 
-With `DEMO_MODE=true`, sign in with **Try the demo**. **Follow-ups** already has Jordan Sample’s unanswered quote and a boiler service reminder. **Due soon** lists that boiler service. Open Jordan Sample from Customers to see the service due date.
+With `DEMO_MODE=true`, sign in with **Try the demo**. **Follow-ups** already has Jordan Sample’s unanswered quote and a boiler service reminder. **Upcoming reminders** lists that boiler service and a gas safety check. Open Jordan Sample from Customers to see both dates.
 
 ### Meta WhatsApp setup
 

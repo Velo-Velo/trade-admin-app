@@ -3,6 +3,7 @@ import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
 import { isServiceDueSoon } from "@/lib/chasers/plan";
+import { ReminderList, type ReminderListItem } from "@/components/reminder-list";
 import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
 import { firstParam, formatDate } from "@/lib/format";
@@ -44,8 +45,23 @@ export default async function JobsPage({
       _count: { select: { photos: true, rams: true } },
     },
   });
+  const reminders = await prisma.serviceReminder.findMany({
+    where: { traderId: user.trader.id, enabled: true },
+    include: { customer: { select: { name: true } } },
+  });
   const remindWeeks = user.trader.serviceRemindWeeks;
-  const dueSoon = jobs.filter((job) => isServiceDueSoon(job, now, remindWeeks));
+  const dueSoon: ReminderListItem[] = [
+    ...jobs.flatMap((job) =>
+      job.serviceDueAt && isServiceDueSoon(job, now, remindWeeks)
+        ? [{ id: job.id, title: job.title, customerName: job.customer.name, dueAt: job.serviceDueAt, href: `/jobs/${job.id}` }]
+        : [],
+    ),
+    ...reminders.flatMap((reminder) =>
+      isServiceDueSoon({ recurring: true, serviceDueAt: reminder.dueAt }, now, remindWeeks)
+        ? [{ id: reminder.id, title: reminder.title, customerName: reminder.customer.name, dueAt: reminder.dueAt, href: `/customers/${reminder.customerId}` }]
+        : [],
+    ),
+  ].sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 
   return (
     <div className="grid gap-5">
@@ -58,21 +74,12 @@ export default async function JobsPage({
       <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Due soon</h2>
-        {dueSoon.length === 0 ? (
-          <p className="card text-sm text-muted">No repeating services are due in the next {remindWeeks} weeks.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {dueSoon.map((job) => (
-              <a key={job.id} href={`/jobs/${job.id}`} className="card block no-underline">
-                <p className="font-semibold text-ink">{job.title}</p>
-                <p className="mt-1 text-sm text-muted">
-                  {job.customer.name}
-                  {job.serviceDueAt ? ` · due ${formatDate(job.serviceDueAt)}` : ""}
-                </p>
-              </a>
-            ))}
-          </div>
-        )}
+        <ReminderList
+          items={dueSoon}
+          now={now}
+          remindWeeks={remindWeeks}
+          empty={`No repeating services or customer reminders are due in the next ${remindWeeks} weeks.`}
+        />
       </section>
       <form action={createJob} className="card grid gap-3">
         <h2 className="font-serif text-2xl">Book a job</h2>

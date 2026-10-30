@@ -8,6 +8,7 @@ import { newToken } from "@/lib/auth";
 import { paymentNote } from "@/lib/whatsapp/plan";
 import { enforceVerified, traderSandbox } from "@/server/guards";
 import { requestOrigin } from "@/lib/origin";
+import { quoteExpiresAt } from "@/lib/chasers/plan";
 import { approveDraft, deliveryForCustomer, validateQuoteLines, type QuoteLineInput } from "@/lib/quotes/approval";
 import { coolingOffFor } from "@/lib/quotes/cooling-off";
 import { redirectWith } from "@/lib/redirects";
@@ -73,6 +74,7 @@ export async function saveQuoteAction(formData: FormData) {
   if (approving) enforceVerified(user, `/quotes/${quote.id}`);
   const nextStatus = approving ? approveDraft(quote.status) : quote.status;
   const now = new Date();
+  const expiresAt = quoteExpiresAt(now, user.trader.quoteValidDays);
 
   await prisma.$transaction(async (tx) => {
     await tx.quoteLine.deleteMany({ where: { quoteId: quote.id } });
@@ -95,7 +97,9 @@ export async function saveQuoteAction(formData: FormData) {
         depositPercent,
         domestic,
         coolingOffText: coolingOffFor(domestic),
-        ...(approving ? { status: nextStatus, approvedAt: now, sentAt: now } : {}),
+        ...(approving
+          ? { status: nextStatus, approvedAt: now, sentAt: now, expiresAt }
+          : {}),
       },
     });
     if (!approving) {

@@ -8,6 +8,8 @@ import { buttonPrimary, buttonSecondary } from "@/components/styles";
 import { prisma } from "@/lib/db";
 import { firstParam, formatDate, formatGBP, formatQuantity, quoteTotals, telHref } from "@/lib/format";
 import { isDemoSlug } from "@/lib/demo";
+import { isQuoteExpired } from "@/lib/chasers/plan";
+import { expireQuoteNow } from "@/lib/chasers/queue";
 import { resolvePublicQuoteView } from "@/lib/quotes/approval";
 import { billingConfigured } from "@/lib/billing/plans";
 import { cardButtonVisible } from "@/lib/payments/connect-status";
@@ -33,8 +35,14 @@ export default async function PublicQuotePage({
     where: { publicToken: token },
     include: { lines: { orderBy: { sortOrder: "asc" } }, trader: true },
   });
+  const now = new Date();
+  if (quote && quote.status === "SENT" && isQuoteExpired(quote, now)) {
+    await expireQuoteNow(quote.id, now);
+    quote.status = "EXPIRED";
+  }
   const visible = resolvePublicQuoteView(quote);
   if (!visible || !quote) notFound();
+  const expired = visible.status === "EXPIRED" || isQuoteExpired(visible, now);
 
   const cardPay = cardButtonVisible({
     stripeConfigured: stripeConfigured(),
@@ -115,10 +123,11 @@ export default async function PublicQuotePage({
 
         {visible.domestic ? <CoolingOff text={visible.coolingOffText} /> : null}
 
-        {visible.status === "SENT" ? (
+        {visible.status === "SENT" && !expired ? (
           <div className="grid gap-3 border-t border-sand pt-6 sm:grid-cols-[1fr_auto] sm:items-center">
             <p className="text-sm leading-6">
               Accepting tells {visible.trader.businessName} you want this work. It does not take a card payment by itself.
+              {visible.expiresAt ? ` This quote is open until ${formatDate(visible.expiresAt)}.` : ""}
             </p>
             <div className="flex flex-wrap gap-2">
               <form action={acceptQuote}>
@@ -162,6 +171,11 @@ export default async function PublicQuotePage({
         ) : null}
         {visible.status === "LOST" ? (
           <p className="border border-sand bg-white px-4 py-3">This quote is closed. {visible.trader.businessName} is not waiting for a reply.</p>
+        ) : null}
+        {expired ? (
+          <p className="border border-sand bg-white px-4 py-3">
+            This quote is no longer open, so it cannot be accepted. Contact {visible.trader.businessName} if you still want the work.
+          </p>
         ) : null}
       </main>
     </div>

@@ -11,7 +11,7 @@ import {
 } from "../src/lib/demo";
 import { customerSearchText, normalisePhone } from "../src/lib/customers/match";
 import { ensureBookedJob } from "../src/lib/jobs/ensure";
-import { quoteChaseCopy, serviceChaseCopy } from "../src/lib/chasers/plan";
+import { dueAfterJobDate, quoteChaseCopy, quoteExpiresAt, serviceChaseCopy } from "../src/lib/chasers/plan";
 import { coolingOffFor } from "../src/lib/quotes/cooling-off";
 import { buildDraftQuote, describeDraft } from "../src/lib/quotes/draft";
 import { PLUMBING_TEMPLATES } from "../src/lib/templates/plumbing";
@@ -60,6 +60,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
       include: { trader: true },
     });
     if (existing?.trader) {
+      await tx.serviceReminder.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.rams.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.companyDocument.deleteMany({ where: { traderId: existing.trader.id } });
       await tx.job.deleteMany({ where: { traderId: existing.trader.id } });
@@ -220,6 +221,7 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
           draftNote: describeDraft(draft),
           approvedAt,
           sentAt: approvedAt,
+          expiresAt: approvedAt ? quoteExpiresAt(approvedAt, 30) : null,
           acceptedAt,
           createdAt,
           lines: {
@@ -577,6 +579,17 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         stage: 0,
         subject: serviceCopy.subject,
         body: serviceCopy.text,
+      },
+    });
+    const gasAnchor = daysAgo(40);
+    await tx.serviceReminder.create({
+      data: {
+        traderId: trader.id,
+        customerId: jordan.id,
+        title: "Gas safety check",
+        intervalMonths: 12,
+        dueAt: dueAfterJobDate(gasAnchor, 12),
+        enabled: true,
       },
     });
 
