@@ -16,6 +16,8 @@ This app does not give legal, tax or insurance advice. The cancellation wording 
 - Turn each enquiry into a **draft** quote (labour and materials). A language model can adjust the draft when `OPENAI_API_KEY` is set. Without that key, a matching job template is used. If nothing matches, the draft is a blank allowance.
 - Keep a price book. When a line matches a row, the quote uses your sell price and shows **last paid** where you have entered it.
 - Photograph a receipt and send it on WhatsApp, or add the photo under **Receipts**. Check the supplier, date, total and any VAT shown, then confirm. This is a record for you and your accountant. It is not filed with HMRC.
+- Put a visit on the diary. Service reminder dates show there too, and they do not book the job.
+- Record a CIS deduction on an invoice (labour only, at the rate you choose) and download a statement for your accountant. Quotestick does not file it with HMRC and does not give tax advice.
 - Approve the quote. Only then can the customer open `/q/…`, accept it, and (if Stripe keys are set) pay a deposit.
 - Tick off a start-up checklist. Items you mark done, with a number, can show as badges. Quotestick does not check Gas Safe, NICEIC or any other register.
 
@@ -104,9 +106,11 @@ The same daily job that checks the compliance checklist also sends these reminde
 
 **Customers** has a search box. Type part of a name, phone, email, postcode or address. Open a customer to see their jobs, quotes, invoices, and yearly service reminders.
 
+**Diary** is a month view of visits you add to a job, from the job or from the diary itself. A repeating service, and a reminder saved on a customer, appear on the due date and are labelled as a service due, not a booked visit. Nothing on the diary is sent to the customer. The diary is on Solo and Pro once billing is switched on.
+
 On a job, add before and after photos from a phone camera or photo library. Pictures the customer attached to the enquiry are copied onto the job when it is booked. Photos are stored in the database, the same way enquiry photos are, and they are resized and compressed on upload so a free Render database can hold them. Job photos are not shown to the customer.
 
-With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon, and a gas safety check due later in the year.
+With `DEMO_MODE=true`, sign in with **Try the demo**. The sample trader has a booked job, a job in progress, a done job that is invoiced, and a done job that is paid, each with sample photos. Search Customers for `Sample Street` or `07700`. Jordan Sample also has an annual boiler service due soon, and a gas safety check due later in the year. **Diary** shows sample visits on the booked job and the outside-tap job. **CIS records** includes a sample invoice for Sample Contractors Ltd, with a 20% deduction on the labour only.
 
 ## RAMS
 
@@ -125,6 +129,20 @@ Nothing is sent to the client or the main contractor until you forward the PDF y
 On WhatsApp, send `RAMS for the outside tap` (or `RAMS roofing for the Smith job`). Quotestick matches a job you already have and replies with the draft and a PDF link. With Meta connected, it also sends the PDF back to you. The customer is not messaged.
 
 With `DEMO_MODE=true`, the sample trader has a draft RAMS on the outside-tap job, company documents (one training record due soon), and the same RAMS reply in the WhatsApp simulator. Open **RAMS**, then **Download PDF**. Or open **WhatsApp** and send `RAMS for the outside tap`.
+
+## CIS records
+
+CIS (the Construction Industry Scheme) is a deduction a contractor may take from a subcontractor’s pay and pass to HMRC. Quotestick only keeps the record. It does not register you, check your rate, file a monthly return, or give tax advice.
+
+On **Your page**, set your status: not used, gross (0%), standard (20%) or higher (30%). A UTR is optional and is printed on the statement if you enter one. On a customer, tick **This customer deducts CIS** when they are a contractor. You can leave the rate as your own status, or set 0%, 20% or 30% for that customer.
+
+On a draft invoice, split the net into labour and materials. The two figures have to add up to the net already on the invoice. The deduction is the rate times the labour, rounded to the nearest penny. It is not taken off materials or VAT. The PDF and the customer page show the deduction and the amount to pay this business. A card payment, when CIS is recorded, charges that amount. Deposits on quotes are unchanged, and the platform fee is still `STRIPE_PLATFORM_FEE_BPS` (default 0) on whatever is charged.
+
+**CIS records** lists approved invoices for a UK tax year (6 April to 5 April), with a month breakdown and a year total. Download a CSV or a PDF for an accountant. Drafts are left out. The page says the figures are for record-keeping.
+
+Saving the status and the customer tick works on every plan. The deduction on an invoice, and the statement, are on Pro once billing is switched on. Until the test secret and the Solo and Pro price ids are set, paid features stay open, as they do for invoices.
+
+With `DEMO_MODE=true`, open **CIS records**. The sample invoice I-0004 is labour £800, materials £200, and a 20% deduction of £160, so the amount payable to the business is £840.
 
 ## Quote follow-ups and service reminders
 
@@ -274,7 +292,7 @@ The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader ha
 
 Subscriptions for Solo (£14 a month) and Pro (£24 a month) use Stripe Billing Checkout and the customer portal, on the platform Stripe account, in test mode. Price ids come from `STRIPE_PRICE_SOLO` and `STRIPE_PRICE_PRO`. A live secret key does not start a subscription and does not turn the gates on. Until the test secret and both price ids are set, the Plans page says billing is not configured, paid features stay available, and the upgrade buttons stay hidden.
 
-Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, RAMS, company documents, and receipt photos on WhatsApp. Solo adds invoices (40 a calendar month), WhatsApp drafts, jobs you add yourself, job photos (150 stored), quote follow-ups, service reminders, review requests and card payments to the trader's own Stripe account. Pro removes those two caps and adds last-paid prices from the Splitstick feed. There is no separate Splitstick plan: receipt photos are already free, and the price feed is the higher-volume extra. This version does not add crew logins.
+Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, RAMS, company documents, and receipt photos on WhatsApp. Solo adds invoices (40 a calendar month), WhatsApp drafts, jobs you add yourself, job photos (150 stored), a diary of visits, quote follow-ups, service reminders, review requests and card payments to the trader's own Stripe account. Pro removes those two caps, adds last-paid prices from the Splitstick feed, and adds CIS deduction records on invoices. There is no separate Splitstick plan: receipt photos are already free, and the price feed is the higher-volume extra. This version does not add crew logins. A CIS status and a contractor tick can be saved on every plan. The deduction and the statement wait until Pro.
 
 Someone already subscribed to Trade is stored as Solo and keeps an unlimited allowance (`legacyUnlimited`), so the new caps do not apply while Stripe is still charging the old £11.99 price. Someone on the Splitstick bundle is stored as Pro and keeps the price feed. The app does not change the amount Stripe charges them. They switch or cancel in the customer portal. Keep `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK` set until those subscriptions have ended, or a renewal webhook will not recognise the price.
 

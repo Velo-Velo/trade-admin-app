@@ -4,12 +4,13 @@ import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { buttonPrimary, buttonSecondary, inputClass, labelClass } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
 import { traderAccess } from "@/lib/billing/plans";
-import { isSandboxTrader } from "@/lib/sandbox";
 import { displayPhone } from "@/lib/customers/match";
 import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { canMoveJob, invoiceMarker, JOB_STATUSES } from "@/lib/jobs/board";
 import { linkJobInvoice, moveJob, setJobPhotoPublic, updateJobService, uploadJobPhotos } from "@/server/job-actions";
+import { isSandboxTrader } from "@/lib/sandbox";
+import { addJobVisit, deleteJobVisit } from "@/server/diary-actions";
 import { createRams } from "@/server/rams-actions";
 
 export const metadata = { title: "Job" };
@@ -40,6 +41,7 @@ export default async function JobPage({
       photos: { orderBy: { createdAt: "asc" } },
       expenses: { orderBy: { createdAt: "desc" }, select: { id: true, supplier: true, totalPence: true, status: true, spentOn: true } },
       rams: { orderBy: { updatedAt: "desc" }, select: { id: true, number: true, title: true, status: true, isTemplate: true } },
+      visits: { orderBy: { scheduledFor: "asc" } },
     },
   });
   if (!job) notFound();
@@ -94,6 +96,52 @@ export default async function JobPage({
             </button>
           </form>
         ))}
+      </section>
+      <section className="card grid gap-3">
+        <h2 className="font-serif text-2xl">Visits</h2>
+        <p className="text-sm leading-6 text-muted">
+          Dates in the <a href="/diary">diary</a>. They are not sent to the customer. A repeating service further down is a reminder, not a visit.
+        </p>
+        {job.visits.length === 0 ? <p className="text-sm text-muted">No visit booked yet.</p> : null}
+        {job.visits.map((visit) => (
+          <div key={visit.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <p>
+              {formatDate(visit.scheduledFor)}
+              {visit.scheduledTime ? ` at ${visit.scheduledTime}` : ""}
+              {visit.note ? ` · ${visit.note}` : ""}
+            </p>
+            {access.diary ? (
+              <form action={deleteJobVisit}>
+                <input type="hidden" name="visitId" value={visit.id} />
+                <input type="hidden" name="returnTo" value={`/jobs/${job.id}`} />
+                <button className={buttonSecondary} type="submit">Remove</button>
+              </form>
+            ) : null}
+          </div>
+        ))}
+        {access.diary ? (
+          <form action={addJobVisit} className="grid gap-3">
+            <input type="hidden" name="jobId" value={job.id} />
+            <input type="hidden" name="returnTo" value={`/jobs/${job.id}`} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelClass}>
+                Date
+                <input className={inputClass} name="scheduledFor" type="date" required />
+              </label>
+              <label className={labelClass}>
+                Time
+                <input className={inputClass} name="scheduledTime" type="time" />
+              </label>
+            </div>
+            <label className={labelClass}>
+              Note
+              <input className={inputClass} name="note" placeholder="Optional" />
+            </label>
+            <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Add visit</button>
+          </form>
+        ) : (
+          <UpgradePrompt feature="diary" />
+        )}
       </section>
       {access.chasers ? (
         <form action={updateJobService} className="card grid gap-3">

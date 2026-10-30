@@ -7,7 +7,9 @@ export type PaidFeature =
   | "chasers"
   | "card_payments"
   | "manual_jobs"
-  | "splitstick";
+  | "splitstick"
+  | "diary"
+  | "cis";
 
 export type VolumeFeature = "invoice_volume" | "photo_volume";
 
@@ -38,7 +40,10 @@ const SOLO_FEATURES = new Set<PaidFeature>([
   "chasers",
   "card_payments",
   "manual_jobs",
+  "diary",
 ]);
+// CIS deductions and the accountant statement are on Pro only.
+// featureAllowed returns true for every feature on that plan. Receipt photos stay ungated.
 
 const KEEPS_PLAN = new Set(["active", "trialing", "past_due"]);
 
@@ -181,6 +186,8 @@ export function traderAccess(input: {
     cardPayments: allow("card_payments"),
     manualJobs: allow("manual_jobs"),
     splitstick: allow("splitstick"),
+    diary: allow("diary"),
+    cis: allow("cis"),
     invoiceCap: volumeCap({
       plan: input.plan,
       kind: "invoices",
@@ -261,6 +268,10 @@ export function upgradeTitle(feature: UpgradeFeature): string {
       return "Adding a job is on Solo";
     case "splitstick":
       return "Splitstick prices are on Pro";
+    case "diary":
+      return "The diary is on Solo";
+    case "cis":
+      return "CIS records are on Pro";
     case "invoice_volume":
       return "That is the Solo invoice limit";
     case "photo_volume":
@@ -284,6 +295,10 @@ export function upgradeMessage(feature: UpgradeFeature): string {
       return "Adding a job yourself is on Solo. An accepted quote still books a job on Free. Open Plans. Nothing was booked.";
     case "splitstick":
       return "Last-paid prices from Splitstick are on Pro. Open Plans. Nothing was changed.";
+    case "diary":
+      return "The diary is on Solo. Open Plans. Nothing was changed.";
+    case "cis":
+      return "CIS records are on Pro. Open Plans. Nothing was filed.";
     case "invoice_volume":
       return `Solo includes ${SOLO_INVOICE_MONTHLY_LIMIT} invoices a month. Open Plans to move to Pro. Nothing was created.`;
     case "photo_volume":

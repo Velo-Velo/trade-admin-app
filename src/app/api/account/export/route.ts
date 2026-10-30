@@ -31,6 +31,8 @@ export async function GET() {
           tradingAddress: true,
           vatRegistered: true,
           vatNumber: true,
+          cisStatus: true,
+          cisUtr: true,
           customers: true,
           enquiries: {
             select: {

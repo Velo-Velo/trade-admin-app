@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
-import { formatDate, formatGBP } from "../format";
+import { CIS_INVOICE_NOTE, formatMoneyRow, invoiceMoneyRows } from "../cis/calc";
+import { formatDate } from "../format";
 
 export type InvoicePdfInput = {
   number: string;
@@ -15,6 +16,12 @@ export type InvoicePdfInput = {
   netPence: number;
   vatPence: number;
   totalPence: number;
+  labourPence?: number;
+  materialsPence?: number;
+  cisApplies?: boolean;
+  cisRate?: number;
+  cisDeductionPence?: number;
+  amountDuePence?: number;
   dueAt: Date;
   issuedAt: Date;
   bankAccountName: string;
@@ -65,28 +72,48 @@ export function renderInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     doc.font("Helvetica-Bold").fontSize(12).text("Work", 48, y);
     doc.font("Helvetica").fontSize(11).text(input.description, 48, y + 18, { width: 500 });
 
-    y = Math.max(doc.y + 24, 380);
+    y = Math.max(doc.y + 24, 360);
+    if (y > 620) {
+      doc.addPage();
+      y = 48;
+    }
     doc.moveTo(48, y).lineTo(547, y).strokeColor("#d9d1c3").stroke();
     y += 16;
-    const row = (label: string, value: string, bold = false) => {
-      doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(bold ? 13 : 11);
-      doc.text(label, 300, y, { width: 120 });
-      doc.text(value, 420, y, { width: 127, align: "right" });
-      y += bold ? 22 : 18;
-    };
-    row("Net", formatGBP(input.netPence));
-    row(input.vatRate > 0 ? `VAT ${input.vatRate}%` : "VAT", formatGBP(input.vatPence));
-    row("Total", formatGBP(input.totalPence), true);
-
-    y += 12;
-    doc.font("Helvetica").fontSize(10).fillColor("#3f3a33");
-    if (input.vatRate > 0) {
-      doc.text("The total includes VAT at the standard UK rate.", 48, y, { width: 240 });
-    } else {
-      doc.text("No VAT has been added. This business is not VAT registered on this invoice.", 48, y, { width: 240 });
+    const rows = invoiceMoneyRows({
+      labourPence: input.labourPence ?? input.netPence,
+      materialsPence: input.materialsPence ?? 0,
+      netPence: input.netPence,
+      vatPence: input.vatPence,
+      vatRate: input.vatRate,
+      totalPence: input.totalPence,
+      cisApplies: input.cisApplies ?? false,
+      cisRate: input.cisRate ?? 0,
+      cisDeductionPence: input.cisDeductionPence ?? 0,
+      amountDuePence: input.amountDuePence ?? input.totalPence,
+    });
+    for (const row of rows) {
+      doc.font(row.strong ? "Helvetica-Bold" : "Helvetica").fontSize(row.strong ? 13 : 11).fillColor("#1c1915");
+      doc.text(row.label, 230, y, { width: 190 });
+      doc.text(formatMoneyRow(row), 420, y, { width: 127, align: "right" });
+      y += row.strong ? 22 : 18;
     }
 
-    y += 56;
+    y += 8;
+    doc.font("Helvetica").fontSize(10).fillColor("#3f3a33");
+    const vatNote = input.vatRate > 0
+      ? "The total includes VAT at the standard UK rate."
+      : "No VAT has been added. This business is not VAT registered on this invoice.";
+    doc.text(vatNote, 48, y, { width: 240 });
+    y = Math.max(y + 36, doc.y + 8);
+    if (input.cisApplies) {
+      doc.fontSize(9).text(CIS_INVOICE_NOTE, 48, y, { width: 500 });
+      y = doc.y + 16;
+    }
+
+    if (y > 700) {
+      doc.addPage();
+      y = 48;
+    }
     doc.fillColor("#1c1915").font("Helvetica-Bold").fontSize(12).text("How to pay", 48, y);
     y += 18;
     doc.font("Helvetica").fontSize(11);
@@ -105,11 +132,20 @@ export function renderInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     } else {
       doc.text("Card payment is not set up. No card payment has been taken.", 48, y, { width: 500 });
     }
+    if (input.cisApplies) {
+      doc.moveDown(0.6);
+      doc.fontSize(10).text("Pay this business the amount after the CIS deduction. A contractor pays the deduction to HMRC, not to this business. That split is your record.", { width: 500 });
+    }
 
+    y = doc.y + 28;
+    if (y > 760) {
+      doc.addPage();
+      y = 48;
+    }
     doc.fontSize(8).fillColor("#6b645b").text(
       "Quotestick prepared this invoice for the trader. It is not a tax return and it is not legal advice.",
       48,
-      780,
+      y,
       { width: 500 },
     );
     doc.end();

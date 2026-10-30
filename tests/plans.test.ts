@@ -23,7 +23,7 @@ const prices = {
   STRIPE_PRICE_SPLITSTICK: "price_bundle",
 };
 
-const features: PaidFeature[] = ["invoices", "whatsapp", "photos", "chasers", "card_payments", "manual_jobs", "splitstick"];
+const features: PaidFeature[] = ["invoices", "whatsapp", "photos", "chasers", "card_payments", "manual_jobs", "diary", "splitstick", "cis"];
 
 describe("Solo and Pro", () => {
   it("prices Solo at £14 and Pro at £24", () => {
@@ -33,7 +33,7 @@ describe("Solo and Pro", () => {
 
   it("gives Solo the day-to-day tools and leaves Splitstick prices on Pro", () => {
     for (const feature of features) {
-      if (feature === "splitstick") {
+      if (feature === "splitstick" || feature === "cis") {
         expect(featureAllowed({ plan: "SOLO", feature, billingOn: true })).toBe(false);
         expect(featureAllowed({ plan: "PRO", feature, billingOn: true })).toBe(true);
       } else {
@@ -44,6 +44,9 @@ describe("Solo and Pro", () => {
     }
     expect(upgradeMessage("whatsapp")).toMatch(/Receipt photos stay on every plan/);
     expect(upgradeMessage("splitstick")).toMatch(/Pro/);
+    expect(upgradeMessage("diary")).toMatch(/Solo/);
+    expect(upgradeMessage("cis")).toMatch(/Pro/);
+    expect(upgradeMessage("cis")).toMatch(/Nothing was filed/);
   });
 
   it("caps a new Solo account and leaves a legacy Trade price unlimited", () => {

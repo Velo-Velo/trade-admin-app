@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { dateInputValue, firstParam, formatDate, formatGBP } from "@/lib/format";
 import { invoiceMarker } from "@/lib/jobs/board";
 import { updateCustomerDetails } from "@/server/job-actions";
+import { saveCustomerCis } from "@/server/cis-actions";
 import { deleteCustomerReminder, markReminderDone, saveCustomerReminder } from "@/server/reminder-actions";
 
 export const metadata = { title: "Customer" };
@@ -88,6 +89,27 @@ export default async function CustomerPage({
           </label>
         </div>
         <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save details</button>
+      </form>
+      <form action={saveCustomerCis} className="card grid gap-3">
+        <h2 className="font-serif text-2xl">CIS</h2>
+        <p className="text-sm leading-6 text-muted">
+          Tick this when the customer is a contractor who deducts CIS from your invoice. Domestic customers stay unticked. Leave the rate blank to use the status on Your page. The deduction is recorded on the invoice only on Pro, and only after you approve that invoice.
+        </p>
+        <input type="hidden" name="customerId" value={customer.id} />
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" name="deductsCis" defaultChecked={customer.deductsCis} />
+          This customer deducts CIS
+        </label>
+        <label className={labelClass}>
+          Rate for this customer
+          <select className={inputClass} name="cisRateOverride" defaultValue={customer.cisRateOverride === null ? "" : String(customer.cisRateOverride)}>
+            <option value="">Use my status</option>
+            <option value="0">Gross — 0%</option>
+            <option value="20">Standard — 20%</option>
+            <option value="30">Higher — 30%</option>
+          </select>
+        </label>
+        <button className={`${buttonSecondary} w-full sm:w-auto`} type="submit">Save CIS setting</button>
       </form>
       <section className="grid gap-3">
         <h2 className="font-serif text-2xl">Service reminders</h2>

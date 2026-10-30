@@ -28,6 +28,11 @@ function daysAhead(days: number): Date {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
+function utcDay(offset: number): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset));
+}
+
 function token(): string {
   return randomBytes(32).toString("base64url");
 }
@@ -102,6 +107,8 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         bankAccountNumber: "00000000",
         tradingAddress: "Sample address, United Kingdom",
         vatRegistered: false,
+        cisStatus: "STANDARD",
+        cisUtr: "1234567890",
         googleReviewUrl: "https://example.com/sample-review",
         reviewChasersEnabled: true,
         siteTheme: "ink",
@@ -320,6 +327,9 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         vatPence: 0,
         totalPence: 8000,
         vatRate: 0,
+        labourPence: 8000,
+        materialsPence: 0,
+        amountDuePence: 8000,
         publicToken: token(),
         reviewToken: token(),
         dueAt: unpaidDue,
@@ -367,6 +377,9 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         vatPence: 0,
         totalPence: 9500,
         vatRate: 0,
+        labourPence: 9500,
+        materialsPence: 0,
+        amountDuePence: 9500,
         publicToken: token(),
         reviewToken: token(),
         dueAt: daysAgo(8),
@@ -429,6 +442,9 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         vatPence: 0,
         totalPence: 9500,
         vatRate: 0,
+        labourPence: 6000,
+        materialsPence: 3500,
+        amountDuePence: 9500,
         publicToken: token(),
         reviewToken: token(),
         dueAt: daysAhead(14),
@@ -450,11 +466,80 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
         },
       },
     });
-    await tx.trader.update({ where: { id: trader.id }, data: { invoiceSeq: 3 } });
+    const contractor = await tx.customer.create({
+      data: {
+        traderId: trader.id,
+        name: "Sample Contractors Ltd",
+        email: "accounts.sample@example.com",
+        postcode: "B1 1AA",
+        address: "1 Sample Yard, Birmingham",
+        searchText: customerSearchText({
+          name: "Sample Contractors Ltd",
+          email: "accounts.sample@example.com",
+          phone: "",
+          postcode: "B1 1AA",
+          address: "1 Sample Yard, Birmingham",
+        }),
+        deductsCis: true,
+      },
+    });
+    await tx.invoice.create({
+      data: {
+        traderId: trader.id,
+        customerId: contractor.id,
+        number: "I-0004",
+        status: "SENT",
+        customerName: "Sample Contractors Ltd",
+        customerContact: "accounts.sample@example.com",
+        description: "First fix pipework. Sample CIS invoice. Labour and materials are split so the deduction is on the labour only.",
+        netPence: 100000,
+        vatPence: 0,
+        totalPence: 100000,
+        vatRate: 0,
+        labourPence: 80000,
+        materialsPence: 20000,
+        cisApplies: true,
+        cisRate: 20,
+        cisDeductionPence: 16000,
+        amountDuePence: 84000,
+        publicToken: token(),
+        reviewToken: token(),
+        dueAt: daysAhead(14),
+        chaserEnabled: true,
+        approvedAt: daysAgo(2),
+        sentAt: daysAgo(2),
+        createdAt: daysAgo(2),
+        businessName: DEMO_TRADER.businessName,
+        phone: DEMO_TRADER.phone,
+        tradingAddress: "Sample address, United Kingdom",
+        bankAccountName: "Sample Harbour Heating",
+        bankSortCode: "00-00-00",
+        bankAccountNumber: "00000000",
+        source: "dashboard",
+        events: {
+          create: {
+            type: "approved",
+            channel: "email",
+            detail: "Approved. Sample CIS record at 20% on labour. Not sent to HMRC.",
+            createdAt: daysAgo(2),
+          },
+        },
+      },
+    });
+    await tx.trader.update({ where: { id: trader.id }, data: { invoiceSeq: 4 } });
 
     const booked = await ensureBookedJob(tx, acceptedQuoteId);
     if (!booked) throw new Error("The accepted sample quote did not create a booked job.");
     await tx.job.update({ where: { id: booked.id }, data: { invoiceId: draftInvoice.id } });
+    await tx.jobVisit.create({
+      data: {
+        traderId: trader.id,
+        jobId: booked.id,
+        scheduledFor: utcDay(0),
+        scheduledTime: "08:30",
+        note: "Sample visit. The customer has not been told.",
+      },
+    });
     await tx.jobPhoto.updateMany({ where: { jobId: booked.id }, data: { showOnWebsite: true } });
 
     const riley = customers.get("Riley Sample");
@@ -482,6 +567,12 @@ export async function seedSampleTrader(prisma: PrismaClient): Promise<void> {
           },
         },
       },
+    });
+    await tx.jobVisit.createMany({
+      data: [
+        { traderId: trader.id, jobId: outsideTap.id, scheduledFor: utcDay(1), scheduledTime: "09:30", note: "Isolate and fit the new tap." },
+        { traderId: trader.id, jobId: outsideTap.id, scheduledFor: utcDay(2), scheduledTime: "14:00", note: "Check the joints." },
+      ],
     });
     await tx.job.create({
       data: {

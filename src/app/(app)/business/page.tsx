@@ -18,6 +18,7 @@ import { updateBusiness, updateSiteTheme } from "@/server/business-actions";
 import { updateFollowUpSettings } from "@/server/chase-actions";
 import { whatsappConnection } from "@/lib/whatsapp/client";
 import { createWhatsAppLink, unlinkWhatsApp, updatePaymentSettings } from "@/server/invoice-actions";
+import { saveCisProfile } from "@/server/cis-actions";
 import { refreshStripeConnect, startStripeConnect } from "@/server/stripe-actions";
 
 export const metadata = { title: "Your page" };
@@ -181,6 +182,26 @@ export default async function BusinessPage({
           Send review requests after a job is paid or marked complete
         </label>
         <button className={buttonPrimary} type="submit">Save invoice settings</button>
+      </form>
+      <form action={saveCisProfile} className="grid gap-4 border-t border-sand pt-6">
+        <h2 className="font-serif text-2xl">CIS</h2>
+        <p className="text-sm leading-6 text-muted">
+          If a contractor deducts CIS from what they pay you, record the status you want used as the default. Gross is 0%, standard is 20%, higher is 30%. This is a record for you and your accountant. Quotestick does not check it with HMRC, does not file a return, and does not give tax advice. Deductions are added to invoices on Pro.
+        </p>
+        <label className={labelClass}>
+          Your status
+          <select className={inputClass} name="cisStatus" defaultValue={trader.cisStatus}>
+            <option value="NOT_USED">Not used</option>
+            <option value="GROSS">Gross — 0%</option>
+            <option value="STANDARD">Standard — 20%</option>
+            <option value="HIGHER">Higher — 30%</option>
+          </select>
+        </label>
+        <label className={labelClass}>
+          UTR, if you want it on the statement
+          <input className={inputClass} name="cisUtr" inputMode="numeric" defaultValue={trader.cisUtr} placeholder="10 digits, optional" />
+        </label>
+        <button className={buttonPrimary} type="submit">Save CIS status</button>
       </form>
       <form action={updateFollowUpSettings} className="grid gap-4 border-t border-sand pt-6">
         <h2 className="font-serif text-2xl">Quote follow-ups and service reminders</h2>

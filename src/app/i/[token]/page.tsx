@@ -7,6 +7,7 @@ import { buttonPrimary } from "@/components/styles";
 import { billingConfigured } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { isDemoSlug } from "@/lib/demo";
+import { amountCustomerPays, CIS_INVOICE_NOTE, formatMoneyRow, invoiceMoneyRows } from "@/lib/cis/calc";
 import { firstParam, formatDate, formatGBP } from "@/lib/format";
 import { resolvePublicInvoiceView } from "@/lib/invoices/approval";
 import { cardButtonVisible } from "@/lib/payments/connect-status";
@@ -31,6 +32,8 @@ export default async function PublicInvoicePage({
   );
   if (!invoice) notFound();
   const paid = invoice.status === "PAID";
+  const payable = amountCustomerPays(invoice);
+  const rows = invoiceMoneyRows(invoice);
   const sandbox = isSandboxTrader({ slug: invoice.trader.slug });
   const cardPay = cardButtonVisible({
     stripeConfigured: stripeConfigured(),
@@ -61,15 +64,19 @@ export default async function PublicInvoicePage({
             {paid && invoice.paidAt ? ` · Paid ${formatDate(invoice.paidAt)}` : ""}
           </p>
           <p className="mt-5 whitespace-pre-wrap leading-7">{invoice.description}</p>
-          <dl className="mt-6 max-w-xs border-t border-sand text-sm">
-            <div className="flex justify-between py-2"><dt>Net</dt><dd>{formatGBP(invoice.netPence)}</dd></div>
-            <div className="flex justify-between py-2"><dt>{invoice.vatRate > 0 ? `VAT ${invoice.vatRate}%` : "VAT"}</dt><dd>{formatGBP(invoice.vatPence)}</dd></div>
-            <div className="flex justify-between border-t border-sand py-3 font-serif text-3xl tracking-tight"><dt>Total</dt><dd>{formatGBP(invoice.totalPence)}</dd></div>
+          <dl className="mt-6 max-w-md border-t border-sand text-sm">
+            {rows.map((row) => (
+              <div key={row.label} className={`flex items-baseline justify-between gap-3 py-2 ${row.strong ? "border-t border-sand" : ""}`}>
+                <dt className={row.strong ? "font-serif text-xl tracking-tight" : ""}>{row.label}</dt>
+                <dd className={row.strong ? "font-serif text-xl tracking-tight" : ""}>{formatMoneyRow(row)}</dd>
+              </div>
+            ))}
           </dl>
           <p className="mt-3 max-w-md text-sm leading-6 text-muted">
             {invoice.vatRate > 0
               ? "The total includes VAT."
               : "No VAT has been added. This business is not VAT registered on this invoice."}
+            {invoice.cisApplies ? ` ${CIS_INVOICE_NOTE}` : ""}
           </p>
           <p className="mt-4 text-sm">
             <a href={`/i/${token}/pdf`}>Download PDF</a>
@@ -92,11 +99,11 @@ export default async function PublicInvoicePage({
           ) : cardPay ? (
             <form action={startInvoicePayment} className="mt-4">
               <input type="hidden" name="token" value={token} />
-              <button className={`${buttonPrimary} w-full`} type="submit">Pay {formatGBP(invoice.totalPence)} by card</button>
+              <button className={`${buttonPrimary} w-full`} type="submit">Pay {formatGBP(payable)} by card</button>
             </form>
           ) : invoice.stripePaymentUrl && !sandbox ? (
             <a className={`${buttonPrimary} mt-4 w-full`} href={invoice.stripePaymentUrl}>
-              Pay {formatGBP(invoice.totalPence)} by card
+              Pay {formatGBP(payable)} by card
             </a>
           ) : (
             <p className="mt-4 text-sm leading-6">{paymentNote(null)}</p>

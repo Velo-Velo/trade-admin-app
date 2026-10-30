@@ -27,6 +27,7 @@ export const PLANS = [
       "Invoices, PDFs and payment reminders",
       "WhatsApp drafts for a quote, an invoice or a RAMS. Receipt photos stay on Free",
       "Jobs you add yourself, and up to 150 job photos",
+      "A diary of booked visits. Service dates show separately and do not book the job",
       "Card payments to your own Stripe account",
       "Quote follow-ups, service reminders and review requests",
       "Up to 40 invoices in a calendar month",
@@ -39,6 +40,7 @@ export const PLANS = [
     points: [
       "Everything in Solo, without the monthly invoice cap or the photo cap",
       "Last-paid prices from Splitstick, when that connection is switched on",
+      "CIS deductions on invoices, on the labour only, and a statement for your accountant. Not filed with HMRC",
       "For a busier book of work. This version does not add extra logins for a crew",
     ],
   },
@@ -70,6 +72,10 @@ export const FAQ = [
   },
   {
     q: "What is included before I pay?",
-    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, RAMS, and receipt photos on WhatsApp. Solo adds invoices, WhatsApp drafts, jobs you add yourself, photos, reminders and card payments, with a monthly cap. Pro removes that cap and adds Splitstick last-paid prices. Prices are shown as £14 and £24 a month. Whether VAT is added is still to be confirmed.",
+    a: "Free covers the website, the checklist, enquiries, quotes you approve, the customers on those quotes, the booked job when a quote is accepted, RAMS, and receipt photos on WhatsApp. Solo adds invoices, WhatsApp drafts, jobs you add yourself, photos, a diary, reminders and card payments, with a monthly cap. Pro removes that cap, adds Splitstick last-paid prices, and adds CIS deduction records. Those figures are for you and your accountant. They are not filed with HMRC. Prices are shown as £14 and £24 a month. Whether VAT is added is still to be confirmed.",
+  },
+  {
+    q: "Does Quotestick file CIS or a tax return?",
+    a: "No. On Pro you can record a CIS deduction on an invoice. It is a percentage of the labour, not the materials or the VAT. You can download a statement for your accountant. Quotestick does not send it to HMRC and it does not give tax advice.",
   },
 ] as const;
