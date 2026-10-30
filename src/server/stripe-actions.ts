@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { billingConfigured, priceIdForPlan } from "@/lib/billing/plans";
+import { billingConfigured, featureAllowed, priceIdForPlan, subscriptionStillPaying, upgradeMessage } from "@/lib/billing/plans";
 import { ensureExpressAccount, onboardingUrl } from "@/lib/payments/connect";
 import { publicStripeReason } from "@/lib/payments/stripe-reason";
 import { isSandboxTrader } from "@/lib/sandbox";
@@ -23,6 +23,17 @@ export async function startStripeConnect() {
   }
   if (!stripeConfigured()) {
     redirectWith("/business", "notice", "Stripe is not set up on this server. No payment is taken.");
+  }
+  if (
+    !trader.stripeAccountId &&
+    !featureAllowed({
+      plan: trader.plan,
+      feature: "card_payments",
+      sandbox: false,
+      billingOn: billingConfigured(),
+    })
+  ) {
+    redirectWith("/business", "error", upgradeMessage("card_payments"));
   }
   const origin = await requestOrigin();
   try {
@@ -79,13 +90,19 @@ export async function startPlanCheckout(formData: FormData) {
     redirectWith("/billing", "notice", "The sample account does not subscribe. No payment is taken.");
   }
   const plan = String(formData.get("plan") || "");
-  if (plan !== "TRADE" && plan !== "SPLITSTICK") {
-    redirectWith("/billing", "error", "Choose Trade or the Splitstick bundle.");
+  if (plan !== "SOLO" && plan !== "PRO") {
+    redirectWith("/billing", "error", "Choose Solo or Pro.");
+  }
+  if (!billingConfigured()) {
+    redirectWith("/billing", "notice", "Billing is not configured. No payment was taken.");
+  }
+  if (trader.stripeCustomerId && subscriptionStillPaying(trader.subscriptionStatus)) {
+    await redirectToPortal(trader.stripeCustomerId);
   }
   const price = priceIdForPlan(plan);
   const stripe = stripeClient();
-  if (!billingConfigured() || !stripe || !price) {
-    redirectWith("/billing", "notice", "Stripe Billing is not switched on. No payment is taken.");
+  if (!stripe || !price) {
+    redirectWith("/billing", "notice", "Billing is not configured. No payment was taken.");
   }
   const origin = await requestOrigin();
   try {
@@ -93,9 +110,11 @@ export async function startPlanCheckout(formData: FormData) {
       mode: "subscription",
       customer: trader.stripeCustomerId ?? undefined,
       customer_email: trader.stripeCustomerId ? undefined : user.email,
+      client_reference_id: trader.id,
       line_items: [{ price, quantity: 1 }],
-      metadata: { traderId: trader.id },
-      subscription_data: { metadata: { traderId: trader.id } },
+      metadata: { traderId: trader.id, plan },
+      subscription_data: { metadata: { traderId: trader.id, plan } },
+      automatic_tax: { enabled: false },
       success_url: `${origin}/billing?notice=${encodeURIComponent("Stripe is confirming the plan. It appears here after the webhook arrives.")}`,
       cancel_url: `${origin}/billing?error=${encodeURIComponent("The plan was not changed. No payment was taken.")}`,
     });
@@ -113,14 +132,24 @@ export async function openBillingPortal() {
   if (isSandboxTrader({ slug: trader.slug, email: user.email })) {
     redirectWith("/billing", "notice", "The sample account does not subscribe. No payment is taken.");
   }
-  const stripe = stripeClient();
-  if (!stripe || !trader.stripeCustomerId) {
+  if (!trader.stripeCustomerId) {
     redirectWith("/billing", "notice", "There is no Stripe customer on this account yet.");
+  }
+  if (!billingConfigured()) {
+    redirectWith("/billing", "notice", "Billing is not configured. No payment was taken.");
+  }
+  await redirectToPortal(trader.stripeCustomerId);
+}
+
+async function redirectToPortal(customerId: string): Promise<never> {
+  const stripe = stripeClient();
+  if (!stripe) {
+    redirectWith("/billing", "notice", "Billing is not configured. No payment was taken.");
   }
   const origin = await requestOrigin();
   try {
     const portal = await stripe.billingPortal.sessions.create({
-      customer: trader.stripeCustomerId,
+      customer: customerId,
       return_url: `${origin}/billing`,
     });
     redirect(portal.url);

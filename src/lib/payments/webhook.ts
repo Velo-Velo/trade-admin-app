@@ -35,6 +35,7 @@ export type StripeWebhookKind =
   | "platform_payment"
   | "subscription_checkout"
   | "subscription"
+  | "subscription_payment_failed"
   | "connect_account"
   | "ignore";
 
@@ -60,6 +61,13 @@ export function stripeEventKind(event: Stripe.Event): StripeWebhookKind {
   ) {
     return "subscription";
   }
+  if (!event.account && event.type === "invoice.payment_failed") return "subscription_payment_failed";
   if (event.type === "account.updated") return "connect_account";
   return "ignore";
+}
+
+/** Live-mode subscription events are ignored. Connect payments are not. */
+export function acceptsBillingEvent(kind: StripeWebhookKind, livemode: boolean): boolean {
+  if (kind !== "subscription" && kind !== "subscription_checkout" && kind !== "subscription_payment_failed") return true;
+  return !livemode;
 }

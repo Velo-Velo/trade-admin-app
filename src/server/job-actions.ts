@@ -1,6 +1,8 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth";
+import { billingConfigured, upgradeMessage, volumeAllows, volumeCap } from "@/lib/billing/plans";
+import { isSandboxTrader } from "@/lib/sandbox";
 import { enforceFeature } from "@/server/guards";
 import { addMonths } from "@/lib/chasers/plan";
 import { customerSearchText, normalisePhone } from "@/lib/customers/match";
@@ -176,6 +178,20 @@ export async function uploadJobPhotos(formData: FormData) {
   const existing = await prisma.jobPhoto.count({ where: { jobId: job.id } });
   if (existing + files.length > JOB_PHOTO_LIMIT) {
     redirectWith(`/jobs/${job.id}`, "error", `A job can hold ${JOB_PHOTO_LIMIT} photos.`);
+  }
+  const sandbox = isSandboxTrader({ slug: trader.slug, email: user.email });
+  const photoCap = volumeCap({
+    plan: trader.plan,
+    kind: "photos",
+    sandbox,
+    billingOn: billingConfigured(),
+    legacyUnlimited: trader.legacyUnlimited,
+  });
+  if (photoCap != null) {
+    const stored = await prisma.jobPhoto.count({ where: { job: { traderId: trader.id } } });
+    if (!volumeAllows(photoCap, stored, files.length)) {
+      redirectWith(`/jobs/${job.id}`, "error", upgradeMessage("photo_volume"));
+    }
   }
   for (const file of files) {
     const prepared = await prepareJobPhoto(new Uint8Array(await file.arrayBuffer()));

@@ -7,9 +7,12 @@ const banned = /streamline|effortless|seamless|empower/i;
 
 describe("public marketing copy", () => {
   it("states the three prices in plain language", () => {
-    expect(PLANS.map((plan) => plan.price)).toEqual(["£0", "£11.99", "£16.99"]);
+    expect(PLANS.map((plan) => plan.price)).toEqual(["£0", "£14", "£24"]);
     expect(PLANS[1].period).toBe("a month");
-    expect(PLANS[2].name).toMatch(/Splitstick/);
+    expect(PLANS[1].name).toBe("Solo");
+    expect(PLANS[2].name).toBe("Pro");
+    expect(PRICING_NOTE).toMatch(/£14/);
+    expect(PRICING_NOTE).toMatch(/VAT/);
     expect(PRICING_NOTE).toMatch(/does not charge/);
     expect(HERO.title).toBe("Send a quote from the van.");
     expect(FAQ.length).toBeGreaterThanOrEqual(4);

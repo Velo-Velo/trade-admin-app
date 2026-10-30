@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { billingConfigured, featureAllowed } from "@/lib/billing/plans";
+import { billingConfigured, featureAllowed, upgradeMessage } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { isSandboxTrader } from "@/lib/sandbox";
 import { normaliseEmail } from "@/lib/auth";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   if (!trader) return NextResponse.json({ error: "No trader with that email." }, { status: 404 });
   const sandbox = isSandboxTrader({ slug: trader.slug, email: parsed.data.email });
   if (!featureAllowed({ plan: trader.plan, feature: "splitstick", sandbox, billingOn: billingConfigured() })) {
-    return NextResponse.json({ error: "Receipt prices are on the Splitstick bundle." }, { status: 403 });
+    return NextResponse.json({ error: upgradeMessage("splitstick") }, { status: 403 });
   }
 
   const existing = await prisma.priceBookItem.findFirst({

@@ -10,7 +10,7 @@ import {
 } from "@/lib/quotes/approval";
 import { redirect } from "next/navigation";
 import { isNextRedirect, redirectWith } from "@/lib/redirects";
-import { billingConfigured } from "@/lib/billing/plans";
+import { billingConfigured, type PlanName } from "@/lib/billing/plans";
 import { connectedCheckoutArgs } from "@/lib/payments/checkout";
 import { cardButtonVisible } from "@/lib/payments/connect-status";
 import { platformFeePence } from "@/lib/payments/fee";
@@ -190,7 +190,7 @@ async function openConnectedCheckout(input: {
   customerEmail: string | null;
   trader: {
     slug: string;
-    plan: "FREE" | "TRADE" | "SPLITSTICK";
+    plan: PlanName;
     stripeAccountId: string | null;
     stripeChargesEnabled: boolean;
   };
