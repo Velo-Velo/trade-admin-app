@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { invoiceSubscriptionIds } from "@/lib/billing/invoice-event";
-import { planAfterSubscription } from "@/lib/billing/plans";
+import { subscriptionRecord } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { paidInvoicePatch } from "@/lib/payments/checkout";
 import { subscriptionPriceId, syncConnectAccountByStripeId } from "@/lib/payments/connect";
@@ -81,13 +81,17 @@ async function recordSubscriptionCheckout(stripe: Stripe, session: Stripe.Checko
   let status = "active";
   let priceId: string | null = null;
   let subscriptionId: string | null = null;
+  let cancelAtPeriodEnd = false;
+  let cancelAt: number | null = null;
   if (typeof session.subscription === "string") {
     subscriptionId = session.subscription;
     const subscription = await stripe.subscriptions.retrieve(session.subscription);
     status = subscription.status;
     priceId = subscriptionPriceId(subscription);
+    cancelAtPeriodEnd = subscription.cancel_at_period_end;
+    cancelAt = subscription.cancel_at;
   }
-  await savePlan({ traderId, customerId, subscriptionId, status, priceId });
+  await savePlan({ traderId, customerId, subscriptionId, status, priceId, cancelAtPeriodEnd, cancelAt });
 }
 
 async function recordSubscription(subscription: Stripe.Subscription) {
@@ -98,6 +102,8 @@ async function recordSubscription(subscription: Stripe.Subscription) {
     subscriptionId: subscription.id,
     status: subscription.status,
     priceId: subscriptionPriceId(subscription),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    cancelAt: subscription.cancel_at,
   });
 }
 
@@ -124,13 +130,17 @@ async function savePlan(input: {
   subscriptionId: string | null;
   status: string;
   priceId: string | null;
+  cancelAtPeriodEnd?: boolean | null;
+  cancelAt?: number | null;
 }) {
-  const next = planAfterSubscription({ status: input.status, priceId: input.priceId });
+  const next = subscriptionRecord(input);
   const data = {
     plan: next.plan,
-    subscriptionStatus: next.status,
-    subscriptionPriceId: next.priceId,
+    subscriptionStatus: next.subscriptionStatus,
+    subscriptionPriceId: next.subscriptionPriceId,
     legacyUnlimited: next.legacyUnlimited,
+    subscriptionCancelAtPeriodEnd: next.subscriptionCancelAtPeriodEnd,
+    subscriptionCancelAt: next.subscriptionCancelAt,
     ...(input.customerId ? { stripeCustomerId: input.customerId } : {}),
     ...(input.subscriptionId ? { stripeSubscriptionId: input.subscriptionId } : {}),
   };

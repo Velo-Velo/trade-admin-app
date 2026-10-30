@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { billingConfigured, featureAllowed, priceIdForPlan, subscriptionStillPaying, upgradeMessage } from "@/lib/billing/plans";
+import { PLAN_CONFIRMING_NOTICE, billingConfigured, featureAllowed, priceIdForPlan, subscriptionStillPaying, upgradeMessage } from "@/lib/billing/plans";
 import { ensureExpressAccount, onboardingUrl } from "@/lib/payments/connect";
 import { publicStripeReason } from "@/lib/payments/stripe-reason";
 import { isSandboxTrader } from "@/lib/sandbox";
@@ -115,7 +115,7 @@ export async function startPlanCheckout(formData: FormData) {
       metadata: { traderId: trader.id, plan },
       subscription_data: { metadata: { traderId: trader.id, plan } },
       automatic_tax: { enabled: false },
-      success_url: `${origin}/billing?notice=${encodeURIComponent("Stripe is confirming the plan. It appears here after the webhook arrives.")}`,
+      success_url: `${origin}/billing?notice=${encodeURIComponent(PLAN_CONFIRMING_NOTICE)}`,
       cancel_url: `${origin}/billing?error=${encodeURIComponent("The plan was not changed. No payment was taken.")}`,
     });
     if (!session.url) redirectWith("/billing", "error", "The billing page could not be opened. No payment was taken.");

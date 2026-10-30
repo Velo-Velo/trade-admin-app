@@ -2,14 +2,18 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { invoiceSubscriptionIds } from "@/lib/billing/invoice-event";
 import {
+  PLAN_CONFIRMING_NOTICE,
   PLAN_PRICE_PENCE,
   SOLO_INVOICE_MONTHLY_LIMIT,
   SOLO_PHOTO_LIMIT,
   billingSetup,
+  cancellationNote,
   featureAllowed,
   londonMonthStart,
   planAfterSubscription,
+  subscriptionRecord,
   upgradeMessage,
+  visibleBillingNotice,
   volumeAllows,
   volumeCap,
   type PaidFeature,
@@ -88,6 +92,72 @@ describe("Solo and Pro", () => {
     expect(capture).not.toContain("featureAllowed");
     expect(inbound).not.toContain("featureAllowed");
     expect(capture).toMatch(/every plan/i);
+  });
+
+  it("keeps a cancelled plan until the period ends, and clears the note when it is undone", () => {
+    const ends = Math.floor(Date.UTC(2026, 10, 30, 12, 0, 0) / 1000);
+    const scheduled = subscriptionRecord({
+      status: "active",
+      priceId: "price_solo",
+      cancelAtPeriodEnd: true,
+      cancelAt: ends,
+      env: prices,
+    });
+    expect(scheduled.plan).toBe("SOLO");
+    expect(scheduled.subscriptionCancelAtPeriodEnd).toBe(true);
+    expect(scheduled.subscriptionCancelAt?.toISOString()).toBe("2026-11-30T12:00:00.000Z");
+    expect(cancellationNote({
+      plan: scheduled.plan,
+      cancelAtPeriodEnd: scheduled.subscriptionCancelAtPeriodEnd,
+      cancelAt: scheduled.subscriptionCancelAt,
+    })).toBe("Your Solo plan is cancelled and ends on 30 November 2026. You'll move to Free after that.");
+
+    const undone = subscriptionRecord({
+      status: "active",
+      priceId: "price_solo",
+      cancelAtPeriodEnd: false,
+      cancelAt: null,
+      env: prices,
+    });
+    expect(undone.subscriptionCancelAtPeriodEnd).toBe(false);
+    expect(undone.subscriptionCancelAt).toBeNull();
+    expect(cancellationNote({
+      plan: undone.plan,
+      cancelAtPeriodEnd: undone.subscriptionCancelAtPeriodEnd,
+      cancelAt: undone.subscriptionCancelAt,
+    })).toBeNull();
+
+    const ended = subscriptionRecord({
+      status: "canceled",
+      priceId: "price_pro",
+      cancelAtPeriodEnd: true,
+      cancelAt: ends,
+      env: prices,
+    });
+    expect(ended.plan).toBe("FREE");
+    expect(ended.subscriptionCancelAt).toBeNull();
+    expect(ended.subscriptionCancelAtPeriodEnd).toBe(false);
+
+    const datedOnly = subscriptionRecord({
+      status: "active",
+      priceId: "price_solo",
+      cancelAtPeriodEnd: false,
+      cancelAt: ends,
+      env: prices,
+    });
+    expect(datedOnly.subscriptionCancelAtPeriodEnd).toBe(false);
+    expect(datedOnly.subscriptionCancelAt).not.toBeNull();
+    expect(cancellationNote({ plan: "PRO", cancelAtPeriodEnd: false, cancelAt: null })).toBeNull();
+    expect(cancellationNote({ plan: "PRO", cancelAtPeriodEnd: true, cancelAt: null })).toBe(
+      "Your Pro plan is cancelled and ends at the end of this billing period. You'll move to Free after that.",
+    );
+  });
+
+  it("hides the confirming note once the plan is already active", () => {
+    expect(visibleBillingNotice({ notice: PLAN_CONFIRMING_NOTICE, plan: "SOLO", status: "active" })).toBeUndefined();
+    expect(visibleBillingNotice({ notice: PLAN_CONFIRMING_NOTICE, plan: "PRO", status: "trialing" })).toBeUndefined();
+    expect(visibleBillingNotice({ notice: PLAN_CONFIRMING_NOTICE, plan: "FREE", status: "" })).toBe(PLAN_CONFIRMING_NOTICE);
+    expect(visibleBillingNotice({ notice: "Card updated.", plan: "SOLO", status: "active" })).toBe("Card updated.");
   });
 
   it("reads the subscription id from a current or older invoice payload", () => {

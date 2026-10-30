@@ -133,6 +133,81 @@ export function planAfterSubscription(input: {
   };
 }
 
+export const PLAN_CONFIRMING_NOTICE = "Stripe is confirming the plan. It appears here after the webhook arrives.";
+
+/** The checkout success note is stale once the webhook has already set a paying plan. */
+export function visibleBillingNotice(input: { notice?: string; plan: PlanName; status: string }): string | undefined {
+  if (!input.notice) return undefined;
+  if (input.notice === PLAN_CONFIRMING_NOTICE && input.plan !== "FREE" && KEEPS_PLAN.has(input.status)) return undefined;
+  return input.notice;
+}
+
+/**
+ * While the subscription is still paying, remember a portal cancellation.
+ * A later update with both fields cleared (the trader undid it) wipes them.
+ * A cancelled or deleted subscription has already ended, so the note is cleared too.
+ */
+export function cancellationFromSubscription(input: {
+  status: string;
+  cancelAtPeriodEnd?: boolean | null;
+  cancelAt?: number | null;
+}): { cancelAtPeriodEnd: boolean; cancelAt: Date | null } {
+  if (!KEEPS_PLAN.has(input.status)) return { cancelAtPeriodEnd: false, cancelAt: null };
+  const cancelAt = typeof input.cancelAt === "number" && input.cancelAt > 0 ? new Date(input.cancelAt * 1000) : null;
+  const cancelAtPeriodEnd = Boolean(input.cancelAtPeriodEnd);
+  if (!cancelAtPeriodEnd && !cancelAt) return { cancelAtPeriodEnd: false, cancelAt: null };
+  return { cancelAtPeriodEnd, cancelAt };
+}
+
+export function formatPlanEndDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/London",
+  }).format(date);
+}
+
+export function cancellationNote(input: {
+  plan: PlanName;
+  cancelAtPeriodEnd: boolean;
+  cancelAt: Date | null;
+}): string | null {
+  if (input.plan === "FREE") return null;
+  if (!input.cancelAtPeriodEnd && !input.cancelAt) return null;
+  const label = planLabel(input.plan);
+  if (input.cancelAt) {
+    return `Your ${label} plan is cancelled and ends on ${formatPlanEndDate(input.cancelAt)}. You'll move to Free after that.`;
+  }
+  return `Your ${label} plan is cancelled and ends at the end of this billing period. You'll move to Free after that.`;
+}
+
+export function subscriptionRecord(input: {
+  status: string;
+  priceId: string | null;
+  cancelAtPeriodEnd?: boolean | null;
+  cancelAt?: number | null;
+  env?: BillingEnv;
+}): {
+  plan: PlanName;
+  subscriptionStatus: string;
+  subscriptionPriceId: string;
+  legacyUnlimited: boolean;
+  subscriptionCancelAtPeriodEnd: boolean;
+  subscriptionCancelAt: Date | null;
+} {
+  const next = planAfterSubscription({ status: input.status, priceId: input.priceId, env: input.env });
+  const cancellation = cancellationFromSubscription(input);
+  return {
+    plan: next.plan,
+    subscriptionStatus: next.status,
+    subscriptionPriceId: next.priceId,
+    legacyUnlimited: next.legacyUnlimited,
+    subscriptionCancelAtPeriodEnd: cancellation.cancelAtPeriodEnd,
+    subscriptionCancelAt: cancellation.cancelAt,
+  };
+}
+
 export function subscriptionStillPaying(status: string): boolean {
   return KEEPS_PLAN.has(status);
 }
