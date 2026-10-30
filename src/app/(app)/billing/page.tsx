@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Flash } from "@/components/flash";
 import { buttonPrimary, buttonSecondary } from "@/components/styles";
 import { getCurrentUser } from "@/lib/auth";
-import { billingSetup, planLabel, subscriptionStillPaying } from "@/lib/billing/plans";
+import { billingSetup, cancellationNote, planLabel, subscriptionStillPaying, visibleBillingNotice } from "@/lib/billing/plans";
 import { firstParam } from "@/lib/format";
 import { PLANS, PRICING_NOTE } from "@/lib/marketing";
 import { isSandboxTrader } from "@/lib/sandbox";
@@ -26,6 +26,12 @@ export default async function BillingPage({
   const billing = setup === "ready";
   const current = trader.plan;
   const paying = subscriptionStillPaying(trader.subscriptionStatus);
+  const notice = visibleBillingNotice({ notice: firstParam(query.notice), plan: current, status: trader.subscriptionStatus });
+  const ending = cancellationNote({
+    plan: current,
+    cancelAtPeriodEnd: trader.subscriptionCancelAtPeriodEnd,
+    cancelAt: trader.subscriptionCancelAt,
+  });
 
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
@@ -33,7 +39,17 @@ export default async function BillingPage({
         <h1 className="font-serif text-4xl tracking-tight">Plans</h1>
         <p className="mt-3 max-w-xl leading-7 text-muted">{PRICING_NOTE}</p>
       </div>
-      <Flash error={firstParam(query.error)} notice={firstParam(query.notice)} />
+      <Flash error={firstParam(query.error)} notice={notice} />
+      {ending ? (
+        <div className="grid gap-3 rounded-xl border border-sand bg-white px-4 py-3" role="status">
+          <p className="text-sm leading-6">{ending}</p>
+          {trader.stripeCustomerId && billing && !sandbox ? (
+            <form action={openBillingPortal}>
+              <button className={buttonSecondary} type="submit">Undo cancellation in Stripe</button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
       <p className="text-sm">
         This account is on <span className="font-semibold">{planLabel(current)}</span>
         {trader.subscriptionStatus ? ` · Stripe status ${trader.subscriptionStatus}` : ""}.

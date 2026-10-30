@@ -296,6 +296,8 @@ Once billing is configured, Free keeps the website, checklist, enquiries, quotes
 
 Someone already subscribed to Trade is stored as Solo and keeps an unlimited allowance (`legacyUnlimited`), so the new caps do not apply while Stripe is still charging the old £11.99 price. Someone on the Splitstick bundle is stored as Pro and keeps the price feed. The app does not change the amount Stripe charges them. They switch or cancel in the customer portal. Keep `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK` set until those subscriptions have ended, or a renewal webhook will not recognise the price.
 
+Cancelling in the portal leaves the plan on until the period ends. Plans then says which day it ends, and offers a button back to the portal to undo it. Undoing the cancellation clears that note. The "Stripe is confirming the plan" note is hidden once the plan is already active.
+
 VAT on £14 and £24 is not set up. The amounts are shown as stated. Checkout does not turn on automatic tax. That is for the owner to decide. Quotestick does not give tax advice.
 
 The webhook is `POST /api/stripe/webhook`. Create the event destinations below and give each that same URL. Each destination has its own signing secret.
