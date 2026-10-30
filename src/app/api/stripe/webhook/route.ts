@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
+import { invoiceSubscriptionIds } from "@/lib/billing/invoice-event";
 import { planAfterSubscription } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { paidInvoicePatch } from "@/lib/payments/checkout";
 import { subscriptionPriceId, syncConnectAccountByStripeId } from "@/lib/payments/connect";
 import { accountIdFromThinNotification, isThinEventPayload, stripeV2AccountWebhookSecret } from "@/lib/payments/connect-account";
-import { constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
+import { acceptsBillingEvent, constructStripeEvent, stripeEventKind, stripeWebhookSecrets } from "@/lib/payments/webhook";
 import { stripeClient } from "@/lib/stripe";
 
 export async function POST(request: Request) {
@@ -32,12 +33,17 @@ export async function POST(request: Request) {
 
   try {
     const kind = stripeEventKind(event);
+    if (!acceptsBillingEvent(kind, event.livemode)) {
+      return NextResponse.json({ received: true });
+    }
     if (kind === "subscription_checkout") {
       await recordSubscriptionCheckout(stripe, event.data.object as Stripe.Checkout.Session);
     } else if (kind === "connected_payment" || kind === "platform_payment") {
       await recordStripePayment(event.data.object as Stripe.Checkout.Session);
     } else if (kind === "subscription") {
       await recordSubscription(event.data.object as Stripe.Subscription);
+    } else if (kind === "subscription_payment_failed") {
+      await recordPaymentFailed(event.data.object as Stripe.Invoice);
     } else if (kind === "connect_account") {
       const account = event.data.object as { id?: string };
       if (account.id) await syncConnectAccountByStripeId(account.id);
@@ -74,12 +80,14 @@ async function recordSubscriptionCheckout(stripe: Stripe, session: Stripe.Checko
   const traderId = session.metadata?.traderId || null;
   let status = "active";
   let priceId: string | null = null;
+  let subscriptionId: string | null = null;
   if (typeof session.subscription === "string") {
+    subscriptionId = session.subscription;
     const subscription = await stripe.subscriptions.retrieve(session.subscription);
     status = subscription.status;
     priceId = subscriptionPriceId(subscription);
   }
-  await savePlan({ traderId, customerId, status, priceId });
+  await savePlan({ traderId, customerId, subscriptionId, status, priceId });
 }
 
 async function recordSubscription(subscription: Stripe.Subscription) {
@@ -87,14 +95,33 @@ async function recordSubscription(subscription: Stripe.Subscription) {
   await savePlan({
     traderId: subscription.metadata?.traderId || null,
     customerId,
+    subscriptionId: subscription.id,
     status: subscription.status,
     priceId: subscriptionPriceId(subscription),
+  });
+}
+
+async function recordPaymentFailed(invoice: Stripe.Invoice) {
+  const ids = invoiceSubscriptionIds(invoice);
+  if (!ids.customerId && !ids.subscriptionId) return;
+  await prisma.trader.updateMany({
+    where: {
+      OR: [
+        ...(ids.customerId ? [{ stripeCustomerId: ids.customerId }] : []),
+        ...(ids.subscriptionId ? [{ stripeSubscriptionId: ids.subscriptionId }] : []),
+      ],
+    },
+    data: {
+      subscriptionStatus: "past_due",
+      ...(ids.subscriptionId ? { stripeSubscriptionId: ids.subscriptionId } : {}),
+    },
   });
 }
 
 async function savePlan(input: {
   traderId: string | null;
   customerId: string | null;
+  subscriptionId: string | null;
   status: string;
   priceId: string | null;
 }) {
@@ -103,7 +130,9 @@ async function savePlan(input: {
     plan: next.plan,
     subscriptionStatus: next.status,
     subscriptionPriceId: next.priceId,
+    legacyUnlimited: next.legacyUnlimited,
     ...(input.customerId ? { stripeCustomerId: input.customerId } : {}),
+    ...(input.subscriptionId ? { stripeSubscriptionId: input.subscriptionId } : {}),
   };
   if (input.traderId) {
     await prisma.trader.updateMany({ where: { id: input.traderId }, data });

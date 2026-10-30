@@ -23,8 +23,14 @@ export async function createInvoiceFromText(formData: FormData) {
   const trader = user.trader;
   const parsed = parseInvoiceText(String(formData.get("text") || ""));
   if (!parsed.ok) redirectWith("/invoices", "error", parsed.error);
-  const invoice = await createDraftInvoice({ traderId: trader.id, parsed: parsed.data, source: "dashboard" });
-  redirectWith(`/invoices/${invoice.id}`, "notice", "Draft invoice created. The customer has not been sent anything.");
+  try {
+    const invoice = await createDraftInvoice({ traderId: trader.id, parsed: parsed.data, source: "dashboard" });
+    redirectWith(`/invoices/${invoice.id}`, "notice", "Draft invoice created. The customer has not been sent anything.");
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    const message = error instanceof Error && error.message.includes("Open Plans") ? error.message : "That invoice could not be created. Nothing was sent.";
+    redirectWith("/invoices", "error", message);
+  }
 }
 
 export async function approveInvoiceAction(formData: FormData) {

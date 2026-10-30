@@ -1,4 +1,4 @@
-import { billingConfigured, featureAllowed, sendBlockReason } from "../billing/plans";
+import { billingConfigured, featureAllowed, sendBlockReason, type PlanName } from "../billing/plans";
 import { prisma } from "../db";
 import { sendEmail } from "../email";
 import { isSandboxTrader } from "../sandbox";
@@ -12,7 +12,7 @@ import {
 } from "./plan";
 import { deliverCustomerChase } from "./deliver";
 
-function chasersOpen(trader: { slug: string; plan: "FREE" | "TRADE" | "SPLITSTICK"; user: { email: string; emailVerifiedAt: Date | null } }): {
+function chasersOpen(trader: { slug: string; plan: PlanName; user: { email: string; emailVerifiedAt: Date | null } }): {
   sandbox: boolean;
   hold: boolean;
 } {
@@ -287,7 +287,7 @@ async function releaseService(input: {
   trader: {
     id: string;
     slug: string;
-    plan: "FREE" | "TRADE" | "SPLITSTICK";
+    plan: PlanName;
     businessName: string;
     whatsappE164: string | null;
     autoSendQuoteChasers: boolean;

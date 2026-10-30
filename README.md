@@ -169,7 +169,7 @@ This app is set up for [Render](https://render.com), not Vercel. `render.yaml` d
 3. Connect the GitHub account and select this repository. Render reads `render.yaml`.
 4. Set the web service environment as follows. The blueprint fills the generated values. You only need to change `DEMO_MODE` if you want the sample business.
    - `DEMO_MODE` — set to `true` to click around the sample trader. The blueprint default is `false`. Change it on the blueprint review screen, or later under **Environment**, then use **Manual Deploy** so the new value is picked up at start.
-   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
+   - Leave empty unless you are connecting them: `OPENAI_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET`, `STRIPE_PRICE_SOLO`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TRADE`, `STRIPE_PRICE_SPLITSTICK`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SPLITSTICK_WEBHOOK_SECRET`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
    - Leave the blueprint values: `DATABASE_URL` (from Postgres), `SESSION_SECRET` (generated), `APP_URL` (from `RENDER_EXTERNAL_URL`), `CRON_SECRET` (generated), `SHOW_DEV_LINKS` = `false`, `NODE_ENV` = `production`, `NODE_VERSION` = `22`, `OPENAI_MODEL` = `gpt-4o-mini`, `SMTP_PORT` = `587`.
 5. Apply the blueprint. You do not need a Render shell. The start command is `npm start`, which runs `prisma migrate deploy`, loads the job templates, and resets the sample trader when `DEMO_MODE` is `true`.
 6. Open the `onrender.com` address and click **Try the demo**. That works with `DEMO_MODE` left at `false`. It does not reset real traders.
@@ -201,8 +201,10 @@ Every variable is listed in `.env.example`.
 | `STRIPE_WEBHOOK_SECRET` | No | Signing secret for the Your account event destination on `POST /api/stripe/webhook`. |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | No | Signing secret for the Connected accounts destination. Same URL. Needed so deposit and invoice payments are marked paid. |
 | `STRIPE_V2_ACCOUNT_WEBHOOK_SECRET` | No | Signing secret for the thin-event destination that updates Connect status. Same URL. Events are on Your account. |
-| `STRIPE_PRICE_TRADE` | No | Stripe price id for Trade, £11.99 a month. |
-| `STRIPE_PRICE_SPLITSTICK` | No | Stripe price id for the Splitstick bundle, £16.99 a month. |
+| `STRIPE_PRICE_SOLO` | No | Stripe test price id for Solo, £14 a month. |
+| `STRIPE_PRICE_PRO` | No | Stripe test price id for Pro, £24 a month. |
+| `STRIPE_PRICE_TRADE` | No | Old Trade price id (£11.99). Keep it while anyone is still billed on it. Maps that subscription to Solo, without the new caps. Not sold to new customers. |
+| `STRIPE_PRICE_SPLITSTICK` | No | Old Splitstick bundle price id (£16.99). Keep it while anyone is still billed on it. Maps that subscription to Pro. Not sold to new customers. |
 | `STRIPE_PLATFORM_FEE_BPS` | No | Platform fee in basis points. `0` leaves the full card payment with the trader. |
 | `ERROR_WEBHOOK_URL` | No | Optional URL that receives JSON when a page error is reported. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | No | Sends mail. Without `SMTP_HOST`, messages are logged only. |
@@ -270,11 +272,17 @@ Deposits and invoice payments use Stripe Checkout on the trader's connected acco
 
 The pay button is hidden when `STRIPE_SECRET_KEY` is missing, when the trader has not finished Connect, or on the sample account. A customer then sees that card payments are not switched on and that no payment has been taken.
 
-Subscriptions for Trade (£11.99 a month) and the Splitstick bundle (£16.99 a month) use Stripe Billing Checkout and the customer portal, on the platform account. Price ids come from `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK`. Until the secret key and both price ids are set, paid features stay available and the upgrade buttons stay hidden. Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, RAMS, and receipt photos on WhatsApp. Trade adds invoices, draft quotes and invoices on WhatsApp, photos, reminders and card payments. The Splitstick bundle adds the receipt feed.
+Subscriptions for Solo (£14 a month) and Pro (£24 a month) use Stripe Billing Checkout and the customer portal, on the platform Stripe account, in test mode. Price ids come from `STRIPE_PRICE_SOLO` and `STRIPE_PRICE_PRO`. A live secret key does not start a subscription and does not turn the gates on. Until the test secret and both price ids are set, the Plans page says billing is not configured, paid features stay available, and the upgrade buttons stay hidden.
+
+Once billing is configured, Free keeps the website, checklist, enquiries, quotes, the booked job from an accepted quote, RAMS, company documents, and receipt photos on WhatsApp. Solo adds invoices (40 a calendar month), WhatsApp drafts, jobs you add yourself, job photos (150 stored), quote follow-ups, service reminders, review requests and card payments to the trader's own Stripe account. Pro removes those two caps and adds last-paid prices from the Splitstick feed. There is no separate Splitstick plan: receipt photos are already free, and the price feed is the higher-volume extra. This version does not add crew logins.
+
+Someone already subscribed to Trade is stored as Solo and keeps an unlimited allowance (`legacyUnlimited`), so the new caps do not apply while Stripe is still charging the old £11.99 price. Someone on the Splitstick bundle is stored as Pro and keeps the price feed. The app does not change the amount Stripe charges them. They switch or cancel in the customer portal. Keep `STRIPE_PRICE_TRADE` and `STRIPE_PRICE_SPLITSTICK` set until those subscriptions have ended, or a renewal webhook will not recognise the price.
+
+VAT on £14 and £24 is not set up. The amounts are shown as stated. Checkout does not turn on automatic tax. That is for the owner to decide. Quotestick does not give tax advice.
 
 The webhook is `POST /api/stripe/webhook`. Create the event destinations below and give each that same URL. Each destination has its own signing secret.
 
-- **Your account** sends plan changes. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Put that signing secret in `STRIPE_WEBHOOK_SECRET`.
+- **Your account** sends plan changes. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. Put that signing secret in `STRIPE_WEBHOOK_SECRET`. A failed payment marks the subscription past due and leaves the plan in place. Cancelled, unpaid and deleted subscriptions return the account to Free. Live-mode subscription events are ignored. Deposit and invoice payments on a connected account are not ignored.
 - **Connected accounts** sends deposit and invoice payments, because those are direct charges on the trader's account. Event: `checkout.session.completed`. Put that signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 The app checks the signature against either secret. A connected-account event includes the trader's account id. The payment is then matched by the checkout metadata or the payment link.

@@ -103,7 +103,7 @@ export async function handleInboundWhatsApp(input: {
     });
     const drafts = featureAllowed({ plan: trader.plan, feature: "whatsapp", sandbox: linkSandbox, billingOn: billingConfigured() })
       ? "Send a job for a draft quote, an invoice, or RAMS for a job you already have."
-      : "Draft quotes, invoices and RAMS on WhatsApp are on the Trade plan.";
+      : "Draft quotes, invoices and RAMS on WhatsApp are on Solo. Receipt photos stay on every plan.";
     replies.push(
       await reply(
         phone,
@@ -145,7 +145,16 @@ export async function handleInboundWhatsApp(input: {
       replies.push(await reply(phone, linked.id, parsed.error, input.viaMeta, sandbox));
       return replies;
     }
-    const invoice = await createDraftInvoice({ traderId: linked.id, parsed: parsed.data, source: "whatsapp" });
+    let invoice;
+    try {
+      invoice = await createDraftInvoice({ traderId: linked.id, parsed: parsed.data, source: "whatsapp" });
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes("Open Plans")
+        ? error.message
+        : "That invoice could not be created. Nothing was sent.";
+      replies.push(await reply(phone, linked.id, message, input.viaMeta, sandbox));
+      return replies;
+    }
     const planned = draftInvoiceReply({
       number: invoice.number,
       customerName: invoice.customerName,
